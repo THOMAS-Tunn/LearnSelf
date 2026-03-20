@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
-import { DEFAULT_USER_NAME, SUPABASE_TABLE } from '../constants';
+import { DEFAULT_USER_NAME, SUPABASE_STORAGE_KEY, SUPABASE_TABLE } from '../constants';
 import type { Assignment, AssignmentStatus, Difficulty, UserProfile } from '../types';
 
 interface LearnSelfConfig {
@@ -47,7 +47,8 @@ export function createSupabaseBrowserClient() {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true
+        detectSessionInUrl: true,
+        storageKey: SUPABASE_STORAGE_KEY
       }
     }),
     config

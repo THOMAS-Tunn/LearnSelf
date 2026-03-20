@@ -89,6 +89,29 @@ export default function App() {
 
   const sortedAssignments = useMemo(() => sortAssignments(assignments), [assignments]);
 
+  function isRecoverableSessionError(error: unknown) {
+    const message = error instanceof Error ? error.message.toLowerCase() : '';
+    return [
+      'jwt',
+      'refresh token',
+      'auth session missing',
+      'invalid token',
+      'session',
+      'user from sub claim in jwt does not exist'
+    ].some((fragment) => message.includes(fragment));
+  }
+
+  async function recoverBrokenSession(message = 'Your session expired or became out of sync. Please log in again.') {
+    try {
+      await client?.auth.signOut({ scope: 'local' });
+    } catch {
+      // Ignore sign-out cleanup failures and continue resetting local UI state.
+    }
+
+    resetAppState();
+    setLoginStatus({ tone: 'info', text: message });
+  }
+
   useEffect(() => {
     const { client: supabaseClient, config } = createSupabaseBrowserClient();
     if (!config.supabaseUrl || !config.supabaseAnonKey) {
@@ -164,6 +187,11 @@ export default function App() {
       setActiveView('dashboard');
       setSelectedIds([]);
     } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
       const message = error instanceof Error ? error.message : 'Unable to load assignments.';
       setLoginStatus({ tone: 'error', text: `Signed in, but loading assignments failed: ${message}` });
       setAssignments([]);
@@ -367,6 +395,11 @@ export default function App() {
           : 'Account updated successfully.'
       });
     } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
       const message = error instanceof Error ? error.message : 'Unable to update your account.';
       setProfileStatus({ tone: 'error', text: message });
     } finally {
@@ -432,6 +465,11 @@ export default function App() {
       setAddForm(emptyAssignmentForm);
       setAddFormErrors({});
     } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
       const message = error instanceof Error ? error.message : 'Could not save assignment.';
       setLoginStatus({ tone: 'error', text: `Could not save assignment: ${message}` });
     } finally {
@@ -450,6 +488,11 @@ export default function App() {
       if (status === 'trashed') setTrash((current) => [...current, ...moving]);
       setSelectedIds([]);
     } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
       const message = error instanceof Error ? error.message : 'Action failed.';
       setLoginStatus({ tone: 'error', text: `Could not update assignments: ${message}` });
     }
@@ -473,8 +516,13 @@ export default function App() {
       }
       resetAppState();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to log out cleanly.';
-      setLoginStatus({ tone: 'error', text: message });
+      resetAppState();
+      setLoginStatus({
+        tone: 'info',
+        text: isRecoverableSessionError(error)
+          ? 'The saved session was invalid, so we signed you out locally.'
+          : 'Signed out locally, but Supabase did not confirm the logout cleanly.'
+      });
     } finally {
       setLogoutLoading(false);
     }

@@ -26,7 +26,7 @@ const emptyAssignmentForm: AssignmentFormValues = {
 };
 
 function formatForgotPasswordError(error: unknown) {
-  const message = error instanceof Error ? error.message : 'Unable to send reset email.';
+  const message = getErrorMessage(error, 'Unable to send reset email.');
   const normalized = message.toLowerCase();
 
   if (normalized.includes('rate limit')) {
@@ -38,6 +38,16 @@ function formatForgotPasswordError(error: unknown) {
   }
 
   return message;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string' && error.trim()) return error;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
 }
 
 export default function App() {
@@ -192,7 +202,7 @@ export default function App() {
         return;
       }
 
-      const message = error instanceof Error ? error.message : 'Unable to load assignments.';
+      const message = getErrorMessage(error, 'Unable to load assignments.');
       setLoginStatus({ tone: 'error', text: `Signed in, but loading assignments failed: ${message}` });
       setAssignments([]);
       setFinished([]);
@@ -270,7 +280,7 @@ export default function App() {
         await hydrateUserSession(client, data.user.id, mapUser(data.user));
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to log in.';
+      const message = getErrorMessage(error, 'Unable to log in.');
       setLoginStatus({ tone: 'error', text: message });
     } finally {
       setLoginLoading(false);
@@ -304,7 +314,7 @@ export default function App() {
         setLoginStatus({ tone: 'success', text: 'Account created. Check your email to confirm your account before logging in.' });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to create your account.';
+      const message = getErrorMessage(error, 'Unable to create your account.');
       setSignupStatus({ tone: 'error', text: message });
     } finally {
       setSignupLoading(false);
@@ -400,7 +410,7 @@ export default function App() {
         return;
       }
 
-      const message = error instanceof Error ? error.message : 'Unable to update your account.';
+      const message = getErrorMessage(error, 'Unable to update your account.');
       setProfileStatus({ tone: 'error', text: message });
     } finally {
       setProfileLoading(false);
@@ -433,7 +443,7 @@ export default function App() {
       setResetPasswordOpen(false);
       setLoginStatus({ tone: 'success', text: 'Password updated successfully.' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to update password.';
+      const message = getErrorMessage(error, 'Unable to update password.');
       setResetPasswordStatus({ tone: 'error', text: message });
     } finally {
       setResetPasswordLoading(false);
@@ -478,7 +488,7 @@ export default function App() {
         return;
       }
 
-      const message = error instanceof Error ? error.message : 'Could not save assignment.';
+      const message = getErrorMessage(error, 'Could not save assignment.');
       setLoginStatus({ tone: 'error', text: `Could not save assignment: ${message}` });
     } finally {
       setAddLoading(false);
@@ -508,7 +518,7 @@ export default function App() {
         return;
       }
 
-      const message = error instanceof Error ? error.message : 'Action failed.';
+      const message = getErrorMessage(error, 'Action failed.');
       setLoginStatus({ tone: 'error', text: `Could not update assignments: ${message}` });
     }
   }
@@ -522,7 +532,11 @@ export default function App() {
     setLogoutLoading(true);
 
     try {
-      const { error } = await client.auth.signOut();
+      const signOutPromise = client.auth.signOut();
+      const timeoutPromise = new Promise<{ error: Error }>((resolve) => {
+        window.setTimeout(() => resolve({ error: new Error('Logout timed out') }), 5000);
+      });
+      const { error } = await Promise.race([signOutPromise, timeoutPromise]);
       if (error) {
         const isMissingSession = error.message?.toLowerCase().includes('session') || isRecoverableSessionError(error);
         if (isMissingSession) {

@@ -25,6 +25,21 @@ const emptyAssignmentForm: AssignmentFormValues = {
   desc: ''
 };
 
+function formatForgotPasswordError(error: unknown) {
+  const message = error instanceof Error ? error.message : 'Unable to send reset email.';
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes('rate limit')) {
+    return 'Too many reset requests were sent. Please wait a little and try again.';
+  }
+
+  if (normalized.includes('email not confirmed')) {
+    return 'This email still needs to be confirmed before you can reset the password.';
+  }
+
+  return message;
+}
+
 export default function App() {
   const [client, setClient] = useState<SupabaseClient | null>(null);
   const [currentUser, setCurrentUser] = useState<UserProfile>(getInitialUser());
@@ -284,8 +299,7 @@ export default function App() {
       if (error) throw error;
       setForgotPasswordSuccess(true);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to send reset email.';
-      setForgotPasswordStatus({ tone: 'error', text: message });
+      setForgotPasswordStatus({ tone: 'error', text: formatForgotPasswordError(error) });
     } finally {
       setForgotPasswordLoading(false);
     }

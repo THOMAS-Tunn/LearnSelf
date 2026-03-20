@@ -22,7 +22,7 @@
 html, body, #root { min-height: 100%; }
 body {
   margin: 0;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
   background: var(--white);
   color: var(--ink);
   min-height: 100vh;
@@ -34,7 +34,7 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background-image: repeating-linear-gradient(-55deg, transparent, transparent 14px, rgba(46, 44, 40, 0.055) 14px, rgba(46, 44, 40, 0.055) 17px);
+  background-image: repeating-linear-gradient(-55deg, transparent, transparent 6px, rgba(46, 44, 40, 0.028) 6px, rgba(46, 44, 40, 0.028) 7px);
 }
 body > * { position: relative; z-index: 1; }
 button, input, select, textarea { font: inherit; }
@@ -59,7 +59,9 @@ button { cursor: pointer; }
   width: min(360px, 100%);
 }
 .login-logo, .header-logo, .view-title, .modal-title, .fp-title, .stat-value {
-  font-family: 'Syne', sans-serif;
+  font-family: 'Fraunces', Georgia, serif;
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
 }
 .login-logo { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
 .login-logo span, .header-logo span { color: var(--ink-light); }
@@ -117,6 +119,7 @@ button { cursor: pointer; }
   color: var(--ink);
   background: var(--yellow-btn);
   box-shadow: 0 2px 8px rgba(237, 217, 122, 0.5);
+  transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
 }
 .signup-corner-btn {
   position: fixed;
@@ -135,6 +138,14 @@ button { cursor: pointer; }
   padding: 13px;
   border-radius: 10px;
   font-weight: 600;
+}
+.login-btn:hover, .fp-send-btn:hover, .modal-submit:hover {
+  background: #e5ce60;
+  box-shadow: 0 4px 16px rgba(237, 217, 122, 0.6);
+  transform: translateY(-1px);
+}
+.login-btn:active, .fp-send-btn:active, .modal-submit:active {
+  transform: translateY(0);
 }
 .inline-link {
   color: var(--ink-light);
@@ -162,6 +173,20 @@ button { cursor: pointer; }
 }
 .modal-wide { width: min(520px, 94vw); }
 .fp-modal { width: min(340px, 92vw); }
+.fp-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.fp-sub {
+  color: var(--ink-light);
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 18px;
+}
+.modal-tight {
+  margin-bottom: 10px;
+}
 .modal-head {
   display: flex;
   align-items: flex-start;
@@ -174,6 +199,13 @@ button { cursor: pointer; }
   background: transparent;
   color: var(--ink-muted);
   font-size: 20px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.modal-close:hover, .fp-close:hover {
+  background: var(--red-soft);
+  color: #9b2626;
 }
 .modal-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .modal-textarea { resize: vertical; min-height: 88px; }
@@ -210,7 +242,10 @@ nav { gap: 4px; flex: 1; }
   padding: 6px 14px;
   border-radius: 8px;
   font-size: 13.5px;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
 }
+.nav-btn:hover { background: rgba(46, 44, 40, 0.06); color: var(--ink); }
 .nav-btn.active { background: var(--yellow); color: var(--ink); }
 .header-avatar, .profile-avatar-big {
   display: flex;
@@ -238,9 +273,13 @@ nav { gap: 4px; flex: 1; }
   border-radius: 20px;
   padding: 7px 16px;
   background: var(--white);
+  font-weight: 500;
+  transition: all 0.15s;
 }
 .action-pill.finish { background: var(--green); border-color: var(--green); }
+.action-pill.finish:hover { background: #a8d4aa; }
 .action-pill.del { background: var(--red); border-color: var(--red); }
+.action-pill.del:hover { background: #e8a8a8; }
 .add-btn {
   width: 38px;
   height: 38px;
@@ -248,7 +287,9 @@ nav { gap: 4px; flex: 1; }
   font-size: 22px;
   background: var(--ink);
   color: var(--white);
+  transition: background 0.15s, transform 0.1s;
 }
+.add-btn:hover { background: #1a1918; transform: scale(1.06); }
 .table-wrap, .simple-view-card {
   border-radius: var(--radius);
   padding: 0;
@@ -259,7 +300,7 @@ nav { gap: 4px; flex: 1; }
 table { width: 100%; border-collapse: collapse; }
 thead tr { background: var(--yellow-soft); border-bottom: 1.5px solid var(--border); }
 th, td { text-align: left; padding: 11px 12px; }
-th { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-light); }
+th { font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-light); }
 td { font-size: 13.5px; border-bottom: 1px solid rgba(217, 215, 208, 0.5); }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: rgba(200, 220, 238, 0.18); }
@@ -463,7 +504,7 @@ tbody tr:hover { background: rgba(200, 220, 238, 0.18); }
   border-color: var(--yellow);
 }
 .dp-month-label {
-  font-family: 'Syne', sans-serif;
+  font-family: 'Fraunces', Georgia, serif;
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);

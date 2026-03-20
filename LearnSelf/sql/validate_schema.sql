@@ -103,13 +103,15 @@ ORDER BY indexname;
 
 -- 4) RLS + policies sanity (important in Supabase)
 SELECT
-  schemaname,
-  tablename,
-  rowsecurity,
-  forcerowsecurity
-FROM pg_tables
-WHERE schemaname = 'public'
-  AND tablename = 'assignments';
+  n.nspname AS schemaname,
+  c.relname AS tablename,
+  c.relrowsecurity AS rowsecurity,
+  c.relforcerowsecurity AS forcerowsecurity
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relname = 'assignments'
+  AND c.relkind = 'r';
 
 SELECT
   schemaname,

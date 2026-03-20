@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
-import { DEFAULT_USER_NAME, SUPABASE_STORAGE_KEY, SUPABASE_TABLE } from '../constants';
+import { DEFAULT_USER_NAME, SUPABASE_STORAGE_KEY_PREFIX, SUPABASE_TABLE } from '../constants';
 import type { Assignment, AssignmentStatus, Difficulty, UserProfile } from '../types';
 
 interface LearnSelfConfig {
@@ -20,6 +20,9 @@ interface AssignmentRow {
   status: AssignmentStatus | null;
   created_at?: string | null;
 }
+
+let cachedClient: SupabaseClient | null = null;
+let cachedClientKey = '';
 
 export function getSupabaseConfig(): LearnSelfConfig {
   const fromWindow = window.LEARNSELF_CONFIG || {};
@@ -42,15 +45,31 @@ export function createSupabaseBrowserClient() {
     return { client: null, config };
   }
 
+  let storageScope = config.supabaseUrl;
+  try {
+    storageScope = new URL(config.supabaseUrl).host;
+  } catch {
+    // Keep fallback scope when URL parsing fails.
+  }
+  const storageKey = `${SUPABASE_STORAGE_KEY_PREFIX}:${storageScope}`;
+  const clientKey = `${config.supabaseUrl}|${storageKey}`;
+
+  if (cachedClient && cachedClientKey === clientKey) {
+    return { client: cachedClient, config };
+  }
+
+  cachedClient = createClient(config.supabaseUrl, config.supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey
+    }
+  });
+  cachedClientKey = clientKey;
+
   return {
-    client: createClient(config.supabaseUrl, config.supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        storageKey: SUPABASE_STORAGE_KEY
-      }
-    }),
+    client: cachedClient,
     config
   };
 }

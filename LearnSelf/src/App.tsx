@@ -112,6 +112,16 @@ export default function App() {
     setLoginStatus({ tone: 'info', text: message });
   }
 
+  async function resolveValidSessionUser(activeClient: SupabaseClient, fallbackUserId?: string) {
+    const { data, error } = await activeClient.auth.getUser();
+    if (error) throw error;
+    const user = data.user;
+    if (!user && fallbackUserId) {
+      throw new Error('Your account session no longer exists on the server.');
+    }
+    return user;
+  }
+
   useEffect(() => {
     const { client: supabaseClient, config } = createSupabaseBrowserClient();
     if (!config.supabaseUrl || !config.supabaseAnonKey) {
@@ -143,7 +153,21 @@ export default function App() {
       }
 
       if (data.session?.user) {
-        await hydrateUserSession(supabaseClient, data.session.user.id, mapUser(data.session.user));
+        try {
+          const validUser = await resolveValidSessionUser(supabaseClient, data.session.user.id);
+          if (validUser) {
+            await hydrateUserSession(supabaseClient, validUser.id, mapUser(validUser));
+          } else {
+            await recoverBrokenSession('Your previous session is no longer valid. Please log in again.');
+          }
+        } catch (sessionError) {
+          if (isRecoverableSessionError(sessionError)) {
+            await recoverBrokenSession();
+          } else {
+            const message = sessionError instanceof Error ? sessionError.message : 'Unable to validate your saved session.';
+            setLoginStatus({ tone: 'error', text: message });
+          }
+        }
       }
       setIsCheckingSession(false);
     });
@@ -158,7 +182,22 @@ export default function App() {
         return;
       }
       if (session?.user) {
-        await hydrateUserSession(supabaseClient, session.user.id, mapUser(session.user));
+        try {
+          const validUser = await resolveValidSessionUser(supabaseClient, session.user.id);
+          if (validUser) {
+            await hydrateUserSession(supabaseClient, validUser.id, mapUser(validUser));
+          } else {
+            await recoverBrokenSession('This session is no longer available. Please log in again.');
+          }
+        } catch (sessionError) {
+          if (isRecoverableSessionError(sessionError)) {
+            await recoverBrokenSession();
+            return;
+          }
+
+          const message = sessionError instanceof Error ? sessionError.message : 'Unable to refresh your account session.';
+          setLoginStatus({ tone: 'error', text: message });
+        }
       }
     });
 
@@ -522,7 +561,11 @@ export default function App() {
     setLogoutLoading(true);
 
     try {
-      const { error } = await client.auth.signOut();
+      const signOutPromise = client.auth.signOut();
+      const timeoutPromise = new Promise<{ error: Error }>((resolve) => {
+        window.setTimeout(() => resolve({ error: new Error('Logout timed out') }), 5000);
+      });
+      const { error } = await Promise.race([signOutPromise, timeoutPromise]);
       if (error) {
         const isMissingSession = error.message?.toLowerCase().includes('session') || isRecoverableSessionError(error);
         if (isMissingSession) {

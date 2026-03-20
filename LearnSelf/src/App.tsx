@@ -441,10 +441,18 @@ export default function App() {
   }
 
   async function handleAddAssignment() {
-    if (!validateAssignmentForm() || !client || !currentUser.id || !addForm.difficulty) return;
+    if (!validateAssignmentForm() || !client || !addForm.difficulty) return;
     setAddLoading(true);
 
     try {
+      const { data: userData, error: userError } = await client.auth.getUser();
+      if (userError) throw userError;
+
+      const userId = userData.user?.id || currentUser.id;
+      if (!userId) {
+        throw new Error('You are no longer signed in. Please log in again and retry.');
+      }
+
       const saved = await insertAssignment(
         client,
         {
@@ -457,7 +465,7 @@ export default function App() {
           desc: addForm.desc.trim(),
           status: 'active'
         },
-        currentUser.id
+        userId
       );
 
       setAssignments((current) => [...current, saved]);
@@ -478,10 +486,17 @@ export default function App() {
   }
 
   async function moveAssignments(status: 'finished' | 'trashed') {
-    if (!client || !currentUser.id || !selectedIds.length) return;
+    if (!client || !selectedIds.length) return;
 
     try {
-      await updateAssignmentStatuses(client, currentUser.id, selectedIds, status);
+      const { data: userData, error: userError } = await client.auth.getUser();
+      if (userError) throw userError;
+      const userId = userData.user?.id || currentUser.id;
+      if (!userId) {
+        throw new Error('You are no longer signed in. Please log in again and retry.');
+      }
+
+      await updateAssignmentStatuses(client, userId, selectedIds, status);
       const moving = assignments.filter((item) => selectedIds.includes(item.id)).map((item) => ({ ...item, status }));
       setAssignments((current) => current.filter((item) => !selectedIds.includes(item.id)));
       if (status === 'finished') setFinished((current) => [...current, ...moving]);
@@ -507,10 +522,15 @@ export default function App() {
     setLogoutLoading(true);
 
     try {
-      const { error } = await client.auth.signOut({ scope: 'local' });
+      const { error } = await client.auth.signOut();
       if (error) {
-        const isMissingSession = error.message?.toLowerCase().includes('session');
-        if (!isMissingSession) {
+        const isMissingSession = error.message?.toLowerCase().includes('session') || isRecoverableSessionError(error);
+        if (isMissingSession) {
+          const { error: localError } = await client.auth.signOut({ scope: 'local' });
+          if (localError && !localError.message?.toLowerCase().includes('session')) {
+            throw localError;
+          }
+        } else {
           throw error;
         }
       }
@@ -678,4 +698,3 @@ export default function App() {
     </>
   );
 }
-

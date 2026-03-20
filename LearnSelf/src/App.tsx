@@ -7,14 +7,16 @@ import { ForgotPasswordModal } from './components/modals/ForgotPasswordModal';
 import { AddAssignmentModal } from './components/modals/AddAssignmentModal';
 import { AssignmentDetailModal } from './components/modals/AssignmentDetailModal';
 import { ResetPasswordModal } from './components/modals/ResetPasswordModal';
+import { CommunityView } from './components/views/CommunityView';
 import { SimpleTableView } from './components/views/SimpleTableView';
 import { ToolsView } from './components/views/ToolsView';
 import { HelpView } from './components/views/HelpView';
 import { ProfileView } from './components/views/ProfileView';
 import { SettingsView } from './components/views/SettingsView';
 import { getInitialUser, sortAssignments } from './lib/assignment';
+import { fetchCommunityPosts, insertCommunityComment, insertCommunityPost, withdrawCommunityPost } from './lib/community';
 import { createSupabaseBrowserClient, fetchAssignments, getInitialBrowserSession, insertAssignment, mapUser, updateAssignmentStatuses, getSupabaseConfig } from './lib/supabase';
-import type { Assignment, AssignmentFormValues, StatusMessage, UserProfile, ViewName } from './types';
+import type { Assignment, AssignmentFormValues, CommunityPost, CommunityPostFormValues, StatusMessage, UserProfile, ViewName } from './types';
 
 const emptyAssignmentForm: AssignmentFormValues = {
   name: '',
@@ -23,6 +25,11 @@ const emptyAssignmentForm: AssignmentFormValues = {
   ad: '',
   due: '',
   desc: ''
+};
+
+const emptyCommunityPostForm: CommunityPostFormValues = {
+  title: '',
+  body: ''
 };
 
 function formatForgotPasswordError(error: unknown) {
@@ -63,6 +70,17 @@ function getErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function formatCommunityError(error: unknown, fallback: string) {
+  const message = getErrorMessage(error, fallback);
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes('community_posts') || normalized.includes('community_comments')) {
+    return 'Community is not set up yet. Run the SQL in supabase/community.sql, then refresh this tab.';
+  }
+
+  return message;
 }
 
 export default function App() {
@@ -111,6 +129,17 @@ export default function App() {
   const [profileConfirmPassword, setProfileConfirmPassword] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileStatus, setProfileStatus] = useState<StatusMessage | null>(null);
+  const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
+  const [communityLoadAttempted, setCommunityLoadAttempted] = useState(false);
+  const [communityStatus, setCommunityStatus] = useState<StatusMessage | null>(null);
+  const [communityPostValues, setCommunityPostValues] = useState<CommunityPostFormValues>(emptyCommunityPostForm);
+  const [communityPostErrors, setCommunityPostErrors] = useState<Partial<Record<keyof CommunityPostFormValues, string>>>({});
+  const [communityPosting, setCommunityPosting] = useState(false);
+  const [communityCommentDrafts, setCommunityCommentDrafts] = useState<Record<string, string>>({});
+  const [communityCommentErrors, setCommunityCommentErrors] = useState<Record<string, string | undefined>>({});
+  const [communityCommentLoadingId, setCommunityCommentLoadingId] = useState<string | null>(null);
+  const [communityWithdrawingId, setCommunityWithdrawingId] = useState<string | null>(null);
   const hydratedSessionKeyRef = useRef('');
   const sessionLoadRequestRef = useRef(0);
 
@@ -211,6 +240,14 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (activeView !== 'community' || !client || !currentUser.id || communityLoading || communityLoadAttempted) {
+      return;
+    }
+
+    void loadCommunity();
+  }, [activeView, client, currentUser.id, communityLoading, communityLoadAttempted]);
+
   async function hydrateUserSession(activeClient: SupabaseClient, userId: string, profile: UserProfile) {
     const sessionKey = `${userId}:${profile.email}:${profile.name}`;
     if (hydratedSessionKeyRef.current === sessionKey) {
@@ -229,6 +266,17 @@ export default function App() {
     setSignupStatus(null);
     setLoginPassword('');
     setSignupPassword('');
+    setCommunityPosts([]);
+    setCommunityLoading(false);
+    setCommunityLoadAttempted(false);
+    setCommunityStatus(null);
+    setCommunityPostValues(emptyCommunityPostForm);
+    setCommunityPostErrors({});
+    setCommunityPosting(false);
+    setCommunityCommentDrafts({});
+    setCommunityCommentErrors({});
+    setCommunityCommentLoadingId(null);
+    setCommunityWithdrawingId(null);
 
     try {
       const allAssignments = await fetchAssignments(activeClient, userId);
@@ -285,6 +333,17 @@ export default function App() {
     setProfileConfirmPassword('');
     setProfileLoading(false);
     setProfileStatus(null);
+    setCommunityPosts([]);
+    setCommunityLoading(false);
+    setCommunityLoadAttempted(false);
+    setCommunityStatus(null);
+    setCommunityPostValues(emptyCommunityPostForm);
+    setCommunityPostErrors({});
+    setCommunityPosting(false);
+    setCommunityCommentDrafts({});
+    setCommunityCommentErrors({});
+    setCommunityCommentLoadingId(null);
+    setCommunityWithdrawingId(null);
   }
 
   function validateLogin() {
@@ -311,6 +370,126 @@ export default function App() {
     if (!addForm.due) nextErrors.due = 'Due date is required.';
     setAddFormErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
+  }
+
+  function validateCommunityPostForm() {
+    const nextErrors: typeof communityPostErrors = {};
+    if (communityPostValues.title.trim().length < 3) nextErrors.title = 'Use at least 3 characters for the title.';
+    if (communityPostValues.body.trim().length < 10) nextErrors.body = 'Please add a little more detail so others know how to help.';
+    setCommunityPostErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
+  async function loadCommunity(force = false) {
+    if (!client || !currentUser.id || communityLoading || (!force && communityLoadAttempted)) return;
+
+    setCommunityLoading(true);
+    setCommunityLoadAttempted(true);
+    setCommunityStatus(null);
+
+    try {
+      const posts = await fetchCommunityPosts(client);
+      setCommunityPosts(posts);
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setCommunityStatus({
+        tone: 'error',
+        text: formatCommunityError(error, 'Unable to load the community feed.')
+      });
+    } finally {
+      setCommunityLoading(false);
+    }
+  }
+
+  async function handleCommunityPost() {
+    if (!client || !currentUser.id || !validateCommunityPostForm()) return;
+
+    setCommunityPosting(true);
+    setCommunityStatus(null);
+
+    try {
+      const created = await insertCommunityPost(client, communityPostValues, currentUser);
+      setCommunityPosts((current) => [{ ...created, comments: [] }, ...current]);
+      setCommunityPostValues(emptyCommunityPostForm);
+      setCommunityPostErrors({});
+      setCommunityLoadAttempted(true);
+      setCommunityStatus({ tone: 'success', text: 'Your help request is live.' });
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setCommunityStatus({
+        tone: 'error',
+        text: formatCommunityError(error, 'Unable to post your request.')
+      });
+    } finally {
+      setCommunityPosting(false);
+    }
+  }
+
+  async function handleCommunityComment(postId: string) {
+    if (!client || !currentUser.id) return;
+
+    const draft = communityCommentDrafts[postId]?.trim() || '';
+    if (!draft) {
+      setCommunityCommentErrors((current) => ({ ...current, [postId]: 'Add a comment before posting.' }));
+      return;
+    }
+
+    setCommunityCommentLoadingId(postId);
+    setCommunityCommentErrors((current) => ({ ...current, [postId]: undefined }));
+    setCommunityStatus(null);
+
+    try {
+      const created = await insertCommunityComment(client, postId, draft, currentUser);
+      setCommunityPosts((current) => current.map((post) => (
+        post.id === postId ? { ...post, comments: [...post.comments, created] } : post
+      )));
+      setCommunityCommentDrafts((current) => ({ ...current, [postId]: '' }));
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setCommunityStatus({
+        tone: 'error',
+        text: formatCommunityError(error, 'Unable to post your comment.')
+      });
+    } finally {
+      setCommunityCommentLoadingId(null);
+    }
+  }
+
+  async function handleCommunityWithdraw(post: CommunityPost) {
+    if (!client || !currentUser.id) return;
+
+    setCommunityWithdrawingId(post.id);
+    setCommunityStatus(null);
+
+    try {
+      await withdrawCommunityPost(client, post.id, currentUser.id);
+      setCommunityPosts((current) => current.filter((item) => item.id !== post.id));
+      setCommunityStatus({ tone: 'success', text: 'Your request was withdrawn from the community feed.' });
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setCommunityStatus({
+        tone: 'error',
+        text: formatCommunityError(error, 'Unable to withdraw this request.')
+      });
+    } finally {
+      setCommunityWithdrawingId(null);
+    }
   }
 
   async function handleLogin() {
@@ -623,6 +802,34 @@ export default function App() {
             onOpenDetails={setSelectedAssignment}
             onBulkFinish={() => void moveAssignments('finished')}
             onBulkDelete={() => void moveAssignments('trashed')}
+          />
+        );
+      case 'community':
+        return (
+          <CommunityView
+            currentUserId={currentUser.id}
+            posts={communityPosts}
+            loading={communityLoading}
+            status={communityStatus}
+            postValues={communityPostValues}
+            postErrors={communityPostErrors}
+            posting={communityPosting}
+            commentDrafts={communityCommentDrafts}
+            commentErrors={communityCommentErrors}
+            commentLoadingId={communityCommentLoadingId}
+            withdrawingId={communityWithdrawingId}
+            onPostChange={(field, value) => {
+              setCommunityPostValues((current) => ({ ...current, [field]: value }));
+              setCommunityPostErrors((current) => ({ ...current, [field]: undefined }));
+            }}
+            onPostSubmit={() => void handleCommunityPost()}
+            onCommentChange={(postId, value) => {
+              setCommunityCommentDrafts((current) => ({ ...current, [postId]: value }));
+              setCommunityCommentErrors((current) => ({ ...current, [postId]: undefined }));
+            }}
+            onCommentSubmit={(postId) => void handleCommunityComment(postId)}
+            onWithdraw={(post) => void handleCommunityWithdraw(post)}
+            onRefresh={() => void loadCommunity(true)}
           />
         );
       case 'finished':

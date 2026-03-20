@@ -1,5 +1,6 @@
 import { DIFFICULTIES } from '../../constants';
 import type { AssignmentFormValues } from '../../types';
+import { DatePicker } from '../common/DatePicker';
 
 interface AddAssignmentModalProps {
   open: boolean;
@@ -46,11 +47,11 @@ export function AddAssignmentModal(props: AddAssignmentModalProps) {
         <div className="modal-row">
           <div className="modal-field">
             <label className="modal-label" htmlFor="f-ad">Assign Date</label>
-            <input className="modal-input" id="f-ad" type="date" value={props.values.ad} onChange={(e) => props.onChange('ad', e.target.value)} />
+            <DatePicker id="f-ad" value={props.values.ad} onChange={(value) => props.onChange('ad', value)} placeholder="Pick assign date" />
           </div>
           <div className="modal-field">
             <label className="modal-label" htmlFor="f-due">Due Date *</label>
-            <input className="modal-input" id="f-due" type="date" value={props.values.due} onChange={(e) => props.onChange('due', e.target.value)} />
+            <DatePicker id="f-due" value={props.values.due} onChange={(value) => props.onChange('due', value)} placeholder="Pick due date" required />
             {props.errors.due ? <div className="field-error show">{props.errors.due}</div> : null}
           </div>
         </div>

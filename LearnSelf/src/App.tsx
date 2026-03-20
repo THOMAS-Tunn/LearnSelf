@@ -6,6 +6,7 @@ import { DashboardView } from './components/dashboard/DashboardView';
 import { ForgotPasswordModal } from './components/modals/ForgotPasswordModal';
 import { AddAssignmentModal } from './components/modals/AddAssignmentModal';
 import { AssignmentDetailModal } from './components/modals/AssignmentDetailModal';
+import { ResetPasswordModal } from './components/modals/ResetPasswordModal';
 import { SimpleTableView } from './components/views/SimpleTableView';
 import { ToolsView } from './components/views/ToolsView';
 import { HelpView } from './components/views/HelpView';
@@ -39,6 +40,7 @@ export default function App() {
   const [signupLoading, setSignupLoading] = useState(false);
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [signupName, setSignupName] = useState('');
@@ -48,6 +50,11 @@ export default function App() {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
   const [forgotPasswordError, setForgotPasswordError] = useState<string>();
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState('');
+  const [resetPasswordStatus, setResetPasswordStatus] = useState<StatusMessage | null>(null);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [loginErrors, setLoginErrors] = useState<{ email?: string; password?: string }>({});
@@ -58,6 +65,12 @@ export default function App() {
   const [loginStatus, setLoginStatus] = useState<StatusMessage | null>(null);
   const [signupStatus, setSignupStatus] = useState<StatusMessage | null>(null);
   const [forgotPasswordStatus, setForgotPasswordStatus] = useState<StatusMessage | null>(null);
+  const [profileName, setProfileName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profilePassword, setProfilePassword] = useState('');
+  const [profileConfirmPassword, setProfileConfirmPassword] = useState('');
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileStatus, setProfileStatus] = useState<StatusMessage | null>(null);
 
   const sortedAssignments = useMemo(() => sortAssignments(assignments), [assignments]);
 
@@ -98,6 +111,10 @@ export default function App() {
     });
 
     const { data: authListener } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setResetPasswordOpen(true);
+        setResetPasswordStatus({ tone: 'info', text: 'Recovery link accepted. Enter your new password below.' });
+      }
       if (event === 'SIGNED_OUT') {
         resetAppState();
         return;
@@ -114,6 +131,11 @@ export default function App() {
 
   async function hydrateUserSession(activeClient: SupabaseClient, userId: string, profile: UserProfile) {
     setCurrentUser(profile);
+    setProfileName(profile.name);
+    setProfileEmail(profile.email);
+    setProfilePassword('');
+    setProfileConfirmPassword('');
+    setProfileStatus(null);
     setLoginStatus(null);
     setSignupStatus(null);
     setLoginPassword('');
@@ -144,8 +166,23 @@ export default function App() {
     setSelectedAssignment(null);
     setActiveView('dashboard');
     setLoginPassword('');
+    setLoginStatus(null);
+    setSignupStatus(null);
     setForgotPasswordOpen(false);
     setForgotPasswordSuccess(false);
+    setResetPasswordOpen(false);
+    setResetPasswordValue('');
+    setResetPasswordConfirm('');
+    setResetPasswordStatus(null);
+    setAddModalOpen(false);
+    setAddLoading(false);
+    setLogoutLoading(false);
+    setProfileName('');
+    setProfileEmail('');
+    setProfilePassword('');
+    setProfileConfirmPassword('');
+    setProfileLoading(false);
+    setProfileStatus(null);
   }
 
   function validateLogin() {
@@ -254,6 +291,108 @@ export default function App() {
     }
   }
 
+  async function handleProfileSave() {
+    if (!client) return;
+
+    const trimmedName = profileName.trim();
+    const trimmedEmail = profileEmail.trim();
+    const nextPassword = profilePassword.trim();
+    const updates: {
+      email?: string;
+      password?: string;
+      data?: { full_name: string };
+    } = {};
+
+    if (!trimmedName) {
+      setProfileStatus({ tone: 'error', text: 'Please enter your name.' });
+      return;
+    }
+
+    if (!trimmedEmail.includes('@')) {
+      setProfileStatus({ tone: 'error', text: 'Please enter a valid email address.' });
+      return;
+    }
+
+    if (nextPassword && nextPassword.length < 5) {
+      setProfileStatus({ tone: 'error', text: 'New password must be at least 5 characters.' });
+      return;
+    }
+
+    if (nextPassword !== profileConfirmPassword.trim()) {
+      setProfileStatus({ tone: 'error', text: 'New password and confirmation do not match.' });
+      return;
+    }
+
+    if (trimmedName !== currentUser.name) updates.data = { full_name: trimmedName };
+    if (trimmedEmail !== currentUser.email) updates.email = trimmedEmail;
+    if (nextPassword) updates.password = nextPassword;
+
+    if (!updates.email && !updates.password && !updates.data) {
+      setProfileStatus({ tone: 'info', text: 'No account changes to save yet.' });
+      return;
+    }
+
+    setProfileLoading(true);
+    setProfileStatus(null);
+
+    try {
+      const { error } = await client.auth.updateUser(updates);
+      if (error) throw error;
+
+      setCurrentUser((current) => ({
+        ...current,
+        name: updates.data?.full_name || current.name,
+        email: updates.email || current.email
+      }));
+      setProfilePassword('');
+      setProfileConfirmPassword('');
+      setProfileStatus({
+        tone: 'success',
+        text: updates.email
+          ? 'Account updated. Check your email if Supabase asks you to confirm the new address.'
+          : 'Account updated successfully.'
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to update your account.';
+      setProfileStatus({ tone: 'error', text: message });
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
+  async function handleResetPassword() {
+    if (!client) return;
+
+    if (resetPasswordValue.trim().length < 5) {
+      setResetPasswordStatus({ tone: 'error', text: 'Password must be at least 5 characters.' });
+      return;
+    }
+
+    if (resetPasswordValue !== resetPasswordConfirm) {
+      setResetPasswordStatus({ tone: 'error', text: 'Passwords do not match.' });
+      return;
+    }
+
+    setResetPasswordLoading(true);
+    setResetPasswordStatus(null);
+
+    try {
+      const { error } = await client.auth.updateUser({ password: resetPasswordValue });
+      if (error) throw error;
+
+      setResetPasswordValue('');
+      setResetPasswordConfirm('');
+      setResetPasswordStatus({ tone: 'success', text: 'Password updated. You can now continue using LearnSelf.' });
+      setResetPasswordOpen(false);
+      setLoginStatus({ tone: 'success', text: 'Password updated successfully.' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to update password.';
+      setResetPasswordStatus({ tone: 'error', text: message });
+    } finally {
+      setResetPasswordLoading(false);
+    }
+  }
+
   async function handleAddAssignment() {
     if (!validateAssignmentForm() || !client || !currentUser.id || !addForm.difficulty) return;
     setAddLoading(true);
@@ -308,12 +447,23 @@ export default function App() {
       return;
     }
 
-    const { error } = await client.auth.signOut();
-    if (error) {
-      setLoginStatus({ tone: 'error', text: error.message || 'Unable to log out cleanly.' });
-      return;
+    setLogoutLoading(true);
+
+    try {
+      const { error } = await client.auth.signOut({ scope: 'local' });
+      if (error) {
+        const isMissingSession = error.message?.toLowerCase().includes('session');
+        if (!isMissingSession) {
+          throw error;
+        }
+      }
+      resetAppState();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to log out cleanly.';
+      setLoginStatus({ tone: 'error', text: message });
+    } finally {
+      setLogoutLoading(false);
     }
-    resetAppState();
   }
 
   function handleToggleSelectAll(checked: boolean) {
@@ -348,9 +498,26 @@ export default function App() {
       case 'help':
         return <HelpView />;
       case 'profile':
-        return <ProfileView currentUser={currentUser} activeCount={assignments.length} finishedCount={finished.length} />;
+        return (
+          <ProfileView
+            currentUser={currentUser}
+            activeCount={assignments.length}
+            finishedCount={finished.length}
+            profileName={profileName}
+            profileEmail={profileEmail}
+            profilePassword={profilePassword}
+            profileConfirmPassword={profileConfirmPassword}
+            loading={profileLoading}
+            status={profileStatus}
+            onNameChange={setProfileName}
+            onEmailChange={setProfileEmail}
+            onPasswordChange={setProfilePassword}
+            onConfirmPasswordChange={setProfileConfirmPassword}
+            onSubmit={() => void handleProfileSave()}
+          />
+        );
       case 'settings':
-        return <SettingsView onLogout={() => void handleLogout()} />;
+        return <SettingsView onLogout={() => void handleLogout()} logoutLoading={logoutLoading} />;
       default:
         return null;
     }
@@ -432,6 +599,20 @@ export default function App() {
         onSubmit={() => void handleAddAssignment()}
       />
       <AssignmentDetailModal assignment={selectedAssignment} onClose={() => setSelectedAssignment(null)} />
+      <ResetPasswordModal
+        open={resetPasswordOpen}
+        password={resetPasswordValue}
+        confirmPassword={resetPasswordConfirm}
+        loading={resetPasswordLoading}
+        status={resetPasswordStatus}
+        onPasswordChange={setResetPasswordValue}
+        onConfirmPasswordChange={setResetPasswordConfirm}
+        onClose={() => {
+          setResetPasswordOpen(false);
+          setResetPasswordStatus(null);
+        }}
+        onSubmit={() => void handleResetPassword()}
+      />
     </>
   );
 }

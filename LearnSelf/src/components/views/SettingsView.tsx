@@ -1,8 +1,9 @@
 interface SettingsViewProps {
   onLogout: () => void;
+  logoutLoading?: boolean;
 }
 
-export function SettingsView({ onLogout }: SettingsViewProps) {
+export function SettingsView({ onLogout, logoutLoading = false }: SettingsViewProps) {
   return (
     <div className="view active">
       <div className="simple-view-card settings-card">
@@ -12,7 +13,9 @@ export function SettingsView({ onLogout }: SettingsViewProps) {
           <label className="setting-row yellow-soft"><span>Email notifications</span><input type="checkbox" className="cb" defaultChecked /></label>
           <label className="setting-row blue-soft"><span>Show completed in dashboard</span><input type="checkbox" className="cb" /></label>
           <label className="setting-row green-soft"><span>Auto-delete trash after 30 days</span><input type="checkbox" className="cb" defaultChecked /></label>
-          <button className="login-btn settings-logout" type="button" onClick={onLogout}>Log out</button>
+          <button className={`login-btn settings-logout ${logoutLoading ? 'btn-loading' : ''}`} type="button" onClick={onLogout} disabled={logoutLoading}>
+            {logoutLoading ? 'Logging out...' : 'Log out'}
+          </button>
         </div>
       </div>
     </div>

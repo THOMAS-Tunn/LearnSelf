@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { createClient, type Session, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { DEFAULT_USER_NAME, SUPABASE_STORAGE_KEY, SUPABASE_TABLE } from '../constants';
 import type { Assignment, AssignmentStatus, Difficulty, UserProfile } from '../types';
 
@@ -19,6 +19,14 @@ interface AssignmentRow {
   difficulty: Difficulty | null;
   status: AssignmentStatus | null;
   created_at?: string | null;
+}
+
+let cachedClient: SupabaseClient | null = null;
+let cachedClientKey = '';
+let initialSessionPromise: Promise<Session | null> | null = null;
+
+function getClientCacheKey(config: LearnSelfConfig) {
+  return `${config.supabaseUrl}::${config.supabaseAnonKey}`;
 }
 
 export function getSupabaseConfig(): LearnSelfConfig {
@@ -42,17 +50,39 @@ export function createSupabaseBrowserClient() {
     return { client: null, config };
   }
 
-  return {
-    client: createClient(config.supabaseUrl, config.supabaseAnonKey, {
+  const clientKey = getClientCacheKey(config);
+  if (!cachedClient || cachedClientKey !== clientKey) {
+    cachedClient = createClient(config.supabaseUrl, config.supabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
         storageKey: SUPABASE_STORAGE_KEY
       }
-    }),
+    });
+    cachedClientKey = clientKey;
+    initialSessionPromise = null;
+  }
+
+  return {
+    client: cachedClient,
     config
   };
+}
+
+export async function getInitialBrowserSession(client: SupabaseClient) {
+  if (!initialSessionPromise) {
+    initialSessionPromise = client.auth.getSession()
+      .then(({ data, error }) => {
+        if (error) throw error;
+        return data.session ?? null;
+      })
+      .finally(() => {
+        initialSessionPromise = null;
+      });
+  }
+
+  return initialSessionPromise;
 }
 
 export function mapUser(user: User): UserProfile {

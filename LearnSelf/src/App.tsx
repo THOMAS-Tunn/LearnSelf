@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppShell } from './components/layout/AppShell';
 import { AuthPage } from './components/auth/AuthPage';
@@ -13,7 +13,7 @@ import { HelpView } from './components/views/HelpView';
 import { ProfileView } from './components/views/ProfileView';
 import { SettingsView } from './components/views/SettingsView';
 import { getInitialUser, sortAssignments } from './lib/assignment';
-import { createSupabaseBrowserClient, fetchAssignments, insertAssignment, mapUser, updateAssignmentStatuses, getSupabaseConfig } from './lib/supabase';
+import { createSupabaseBrowserClient, fetchAssignments, getInitialBrowserSession, insertAssignment, mapUser, updateAssignmentStatuses, getSupabaseConfig } from './lib/supabase';
 import type { Assignment, AssignmentFormValues, StatusMessage, UserProfile, ViewName } from './types';
 
 const emptyAssignmentForm: AssignmentFormValues = {
@@ -26,7 +26,7 @@ const emptyAssignmentForm: AssignmentFormValues = {
 };
 
 function formatForgotPasswordError(error: unknown) {
-  const message = error instanceof Error ? error.message : 'Unable to send reset email.';
+  const message = getErrorMessage(error, 'Unable to send reset email.');
   const normalized = message.toLowerCase();
 
   if (normalized.includes('rate limit')) {
@@ -38,6 +38,31 @@ function formatForgotPasswordError(error: unknown) {
   }
 
   return message;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  if (typeof error === 'object' && error !== null) {
+    const message = 'message' in error && typeof error.message === 'string' ? error.message.trim() : '';
+    const details = 'details' in error && typeof error.details === 'string' ? error.details.trim() : '';
+    const hint = 'hint' in error && typeof error.hint === 'string' ? error.hint.trim() : '';
+    const code = 'code' in error && typeof error.code === 'string' ? error.code.trim() : '';
+    const pieces = [
+      message,
+      details && details !== message ? details : '',
+      hint ? `Hint: ${hint}` : '',
+      code ? `Code: ${code}` : ''
+    ].filter(Boolean);
+
+    if (pieces.length) {
+      return pieces.join(' ');
+    }
+  }
+
+  return fallback;
 }
 
 export default function App() {
@@ -86,11 +111,13 @@ export default function App() {
   const [profileConfirmPassword, setProfileConfirmPassword] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileStatus, setProfileStatus] = useState<StatusMessage | null>(null);
+  const hydratedSessionKeyRef = useRef('');
+  const sessionLoadRequestRef = useRef(0);
 
   const sortedAssignments = useMemo(() => sortAssignments(assignments), [assignments]);
 
   function isRecoverableSessionError(error: unknown) {
-    const message = error instanceof Error ? error.message.toLowerCase() : '';
+    const message = getErrorMessage(error, '').toLowerCase();
     return [
       'jwt',
       'refresh token',
@@ -102,6 +129,9 @@ export default function App() {
   }
 
   async function recoverBrokenSession(message = 'Your session expired or became out of sync. Please log in again.') {
+    sessionLoadRequestRef.current += 1;
+    hydratedSessionKeyRef.current = '';
+
     try {
       await client?.auth.signOut({ scope: 'local' });
     } catch {
@@ -112,7 +142,14 @@ export default function App() {
     setLoginStatus({ tone: 'info', text: message });
   }
 
+  function scheduleSessionHydration(activeClient: SupabaseClient, userId: string, profile: UserProfile) {
+    window.setTimeout(() => {
+      void hydrateUserSession(activeClient, userId, profile);
+    }, 0);
+  }
+
   useEffect(() => {
+    let isDisposed = false;
     const { client: supabaseClient, config } = createSupabaseBrowserClient();
     if (!config.supabaseUrl || !config.supabaseAnonKey) {
       setLoginStatus({
@@ -135,20 +172,26 @@ export default function App() {
 
     setClient(supabaseClient);
 
-    supabaseClient.auth.getSession().then(async ({ data, error }) => {
-      if (error) {
-        setLoginStatus({ tone: 'error', text: error.message || 'Unable to restore your session.' });
-        setIsCheckingSession(false);
+    void getInitialBrowserSession(supabaseClient)
+      .then(async (session) => {
+        if (isDisposed || !session?.user) return;
+        await hydrateUserSession(supabaseClient, session.user.id, mapUser(session.user));
+      })
+      .catch((error) => {
+        if (isDisposed) return;
+        setLoginStatus({ tone: 'error', text: getErrorMessage(error, 'Unable to restore your session.') });
+      })
+      .finally(() => {
+        if (!isDisposed) {
+          setIsCheckingSession(false);
+        }
+      });
+
+    const { data: authListener } = supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (isDisposed || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
         return;
       }
 
-      if (data.session?.user) {
-        await hydrateUserSession(supabaseClient, data.session.user.id, mapUser(data.session.user));
-      }
-      setIsCheckingSession(false);
-    });
-
-    const { data: authListener } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         setResetPasswordOpen(true);
         setResetPasswordStatus({ tone: 'info', text: 'Recovery link accepted. Enter your new password below.' });
@@ -158,16 +201,24 @@ export default function App() {
         return;
       }
       if (session?.user) {
-        await hydrateUserSession(supabaseClient, session.user.id, mapUser(session.user));
+        scheduleSessionHydration(supabaseClient, session.user.id, mapUser(session.user));
       }
     });
 
     return () => {
+      isDisposed = true;
       authListener.subscription.unsubscribe();
     };
   }, []);
 
   async function hydrateUserSession(activeClient: SupabaseClient, userId: string, profile: UserProfile) {
+    const sessionKey = `${userId}:${profile.email}:${profile.name}`;
+    if (hydratedSessionKeyRef.current === sessionKey) {
+      return;
+    }
+
+    hydratedSessionKeyRef.current = sessionKey;
+    const requestId = ++sessionLoadRequestRef.current;
     setCurrentUser(profile);
     setProfileName(profile.name);
     setProfileEmail(profile.email);
@@ -181,18 +232,24 @@ export default function App() {
 
     try {
       const allAssignments = await fetchAssignments(activeClient, userId);
+      if (requestId !== sessionLoadRequestRef.current) return;
+
       setAssignments(allAssignments.filter((item) => item.status === 'active'));
       setFinished(allAssignments.filter((item) => item.status === 'finished'));
       setTrash(allAssignments.filter((item) => item.status === 'trashed'));
       setActiveView('dashboard');
       setSelectedIds([]);
     } catch (error) {
+      if (requestId !== sessionLoadRequestRef.current) return;
+
       if (isRecoverableSessionError(error)) {
+        hydratedSessionKeyRef.current = '';
         await recoverBrokenSession();
         return;
       }
 
-      const message = error instanceof Error ? error.message : 'Unable to load assignments.';
+      hydratedSessionKeyRef.current = '';
+      const message = getErrorMessage(error, 'Unable to load assignments.');
       setLoginStatus({ tone: 'error', text: `Signed in, but loading assignments failed: ${message}` });
       setAssignments([]);
       setFinished([]);
@@ -201,6 +258,8 @@ export default function App() {
   }
 
   function resetAppState() {
+    sessionLoadRequestRef.current += 1;
+    hydratedSessionKeyRef.current = '';
     setCurrentUser(getInitialUser());
     setAssignments([]);
     setFinished([]);
@@ -260,17 +319,14 @@ export default function App() {
     setLoginStatus(null);
 
     try {
-      const { data, error } = await client.auth.signInWithPassword({
+      const { error } = await client.auth.signInWithPassword({
         email: loginEmail.trim(),
         password: loginPassword.trim()
       });
 
       if (error) throw error;
-      if (data.user) {
-        await hydrateUserSession(client, data.user.id, mapUser(data.user));
-      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to log in.';
+      const message = getErrorMessage(error, 'Unable to log in.');
       setLoginStatus({ tone: 'error', text: message });
     } finally {
       setLoginLoading(false);
@@ -295,16 +351,14 @@ export default function App() {
 
       if (error) throw error;
 
-      if (data.session?.user) {
-        await hydrateUserSession(client, data.session.user.id, mapUser(data.session.user));
-      } else {
+      if (!data.session?.user) {
         setIsSignup(false);
         setLoginEmail(signupEmail.trim());
         setSignupPassword('');
         setLoginStatus({ tone: 'success', text: 'Account created. Check your email to confirm your account before logging in.' });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to create your account.';
+      const message = getErrorMessage(error, 'Unable to create your account.');
       setSignupStatus({ tone: 'error', text: message });
     } finally {
       setSignupLoading(false);
@@ -400,7 +454,7 @@ export default function App() {
         return;
       }
 
-      const message = error instanceof Error ? error.message : 'Unable to update your account.';
+      const message = getErrorMessage(error, 'Unable to update your account.');
       setProfileStatus({ tone: 'error', text: message });
     } finally {
       setProfileLoading(false);
@@ -433,7 +487,7 @@ export default function App() {
       setResetPasswordOpen(false);
       setLoginStatus({ tone: 'success', text: 'Password updated successfully.' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to update password.';
+      const message = getErrorMessage(error, 'Unable to update password.');
       setResetPasswordStatus({ tone: 'error', text: message });
     } finally {
       setResetPasswordLoading(false);
@@ -478,7 +532,7 @@ export default function App() {
         return;
       }
 
-      const message = error instanceof Error ? error.message : 'Could not save assignment.';
+      const message = getErrorMessage(error, 'Could not save assignment.');
       setLoginStatus({ tone: 'error', text: `Could not save assignment: ${message}` });
     } finally {
       setAddLoading(false);
@@ -508,7 +562,7 @@ export default function App() {
         return;
       }
 
-      const message = error instanceof Error ? error.message : 'Action failed.';
+      const message = getErrorMessage(error, 'Action failed.');
       setLoginStatus({ tone: 'error', text: `Could not update assignments: ${message}` });
     }
   }

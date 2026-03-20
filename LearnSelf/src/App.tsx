@@ -417,7 +417,7 @@ export default function App() {
           />
         </>
       ) : (
-        <AppShell currentView={activeView} currentUser={currentUser} onViewChange={setActiveView}>
+        <AppShell currentView={activeView} currentUser={currentUser} status={loginStatus} onViewChange={setActiveView}>
           {renderView()}
         </AppShell>
       )}

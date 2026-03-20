@@ -1,15 +1,16 @@
 import type { ReactNode } from 'react';
 import { NAV_ITEMS } from '../../constants';
-import type { UserProfile, ViewName } from '../../types';
+import type { StatusMessage, UserProfile, ViewName } from '../../types';
 
 interface AppShellProps {
   currentView: ViewName;
   currentUser: UserProfile;
+  status?: StatusMessage | null;
   onViewChange: (view: ViewName) => void;
   children: ReactNode;
 }
 
-export function AppShell({ currentView, currentUser, onViewChange, children }: AppShellProps) {
+export function AppShell({ currentView, currentUser, status, onViewChange, children }: AppShellProps) {
   const avatar = currentUser.name[0]?.toUpperCase() || 'S';
 
   return (
@@ -29,6 +30,7 @@ export function AppShell({ currentView, currentUser, onViewChange, children }: A
           <div className="header-avatar">{avatar}</div>
         </div>
       </header>
+      {status?.text ? <div className={`status-banner ${status.tone} show`}>{status.text}</div> : null}
       {children}
     </div>
   );

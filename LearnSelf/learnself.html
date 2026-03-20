@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LearnSelf â€“ Student Assignment Tracker</title>
+<title>LearnSelf - Student Assignment Tracker</title>
+<meta name="learnself-supabase-url" content="https://nursggxebavimfgbqhdc.supabase.co">
+<meta name="learnself-supabase-anon-key" content="sb_publishable_2aVDeqqAnbZ1FobHYRhnrw_91rXkkP4">
+<link rel="icon" type="image/png" href="./webicon.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -38,7 +41,7 @@
     overflow-x: hidden;
   }
 
-  /* â”€â”€ TEXTURE BACKGROUND â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  
   body::before {
     content: '';
     position: fixed;
@@ -56,9 +59,7 @@
   }
   body > * { position: relative; z-index: 1; }
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     LOGIN PAGE
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  
   #login-page {
     display: flex;
     align-items: center;
@@ -70,13 +71,16 @@
     background: rgba(255,255,255,0.72);
     backdrop-filter: blur(18px);
     border: 1.5px solid var(--border);
-    border-radius: 22px 22px 22px 6px; /* mixed radii for "cool" */
+    border-radius: 22px 22px 22px 6px; 
     padding: 48px 44px 40px;
     width: 360px;
     box-shadow: var(--shadow-lg);
   }
 
   .login-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     font-family: 'Syne', sans-serif;
     font-weight: 700;
     font-size: 26px;
@@ -85,6 +89,29 @@
     margin-bottom: 6px;
   }
   .login-logo span { color: var(--ink-light); }
+  .brand-mark {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    object-fit: cover;
+    border: 1.5px solid rgba(46,44,40,0.08);
+    box-shadow: 0 8px 22px rgba(46,44,40,0.12);
+    background: var(--white);
+    flex-shrink: 0;
+  }
+  .brand-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .brand-copy small {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
 
   .login-sub {
     font-size: 13px;
@@ -205,13 +232,13 @@
     border-color: var(--ink);
   }
 
-  /* â”€â”€ SIGNUP CARD (hidden by default) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  
   .login-card.signup-mode .login-sub-signup { display: block; }
   .login-card.signup-mode .login-sub-login  { display: none; }
   .login-card:not(.signup-mode) .login-sub-signup { display: none; }
   .login-card:not(.signup-mode) .login-sub-login  { display: block; }
 
-  /* Forgot password modal */
+  
   .fp-overlay {
     display: none; position: fixed; inset: 0; z-index: 300;
     background: rgba(46,44,40,0.35);
@@ -275,12 +302,10 @@
   }
   .login-btn:active { transform: translateY(0); }
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     APP PAGE (hidden until login)
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  
   #app-page { display: none; flex-direction: column; min-height: 100vh; }
 
-  /* â”€â”€ HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  
   header {
     position: sticky; top: 0; z-index: 100;
     background: rgba(244,243,240,0.88);
@@ -292,6 +317,9 @@
   }
 
   .header-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     font-family: 'Syne', sans-serif;
     font-weight: 700;
     font-size: 18px;
@@ -300,6 +328,16 @@
     flex-shrink: 0;
   }
   .header-logo span { color: var(--ink-muted); }
+  .header-logo .brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    box-shadow: 0 5px 14px rgba(46,44,40,0.1);
+  }
+  .header-logo .brand-copy small {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+  }
 
   nav { display: flex; gap: 4px; flex: 1; }
   .nav-btn {
@@ -324,11 +362,11 @@
     cursor: pointer; border: 2px solid var(--border);
   }
 
-  /* â”€â”€ VIEWS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  
   .view { display: none; flex: 1; padding: 28px 32px; }
   .view.active { display: flex; flex-direction: column; }
 
-  /* â”€â”€ DASHBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  
   .dash-top {
     display: flex; align-items: center; justify-content: flex-end;
     margin-bottom: 18px; gap: 12px;
@@ -366,7 +404,7 @@
   }
   .add-btn:hover { background: #1a1918; transform: scale(1.06); }
 
-  /* TABLE */
+  
   .table-wrap {
     background: rgba(255,255,255,0.65);
     backdrop-filter: blur(12px);
@@ -412,7 +450,7 @@
 
   .cb { cursor: pointer; width: 15px; height: 15px; accent-color: var(--ink); }
 
-  /* Priority badge */
+  
   .prio-badge {
     display: inline-flex; align-items: center; justify-content: center;
     width: 26px; height: 26px;
@@ -423,7 +461,7 @@
   .prio-yellow{ background: var(--yellow); color: #7a6010; }
   .prio-green { background: var(--green);  color: #2e6b30; }
 
-  /* Difficulty badge */
+  
   .diff-badge {
     display: inline-block;
     padding: 3px 9px;
@@ -438,7 +476,7 @@
   .name-cell { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .desc-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-light); font-size: 12.5px; }
 
-  /* â”€â”€ EMPTY STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  
   .empty-state {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: 60px 20px; color: var(--ink-muted); gap: 10px;
@@ -446,7 +484,7 @@
   .empty-state svg { opacity: .35; }
   .empty-state p { font-size: 14px; }
 
-  /* â”€â”€ SIMPLE VIEWS (Finished / Trash / Tools / Help) â”€â”€â”€ */
+  
   .simple-view-card {
     background: rgba(255,255,255,0.65);
     border: 1.5px solid var(--border);
@@ -462,7 +500,7 @@
   }
   .view-sub { font-size: 13.5px; color: var(--ink-muted); margin-bottom: 28px; }
 
-  /* â”€â”€ MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  
   .overlay {
     display: none; position: fixed; inset: 0; z-index: 200;
     background: rgba(46,44,40,0.38);
@@ -539,7 +577,7 @@
     box-shadow: 0 4px 16px rgba(237,217,122,0.6);
   }
 
-  /* View assignment modal details */
+  
   .detail-row {
     display: flex; gap: 10px; align-items: flex-start;
     padding: 8px 0; border-bottom: 1px solid rgba(217,215,208,0.5);
@@ -549,7 +587,7 @@
   .detail-key { color: var(--ink-light); min-width: 110px; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; padding-top: 1px; }
   .detail-val { color: var(--ink); flex: 1; }
 
-  /* Profile / Settings view */
+  
   .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .profile-avatar-big {
     width: 72px; height: 72px; border-radius: 50%;
@@ -558,10 +596,10 @@
     border: 3px solid var(--border); margin-bottom: 18px;
   }
 
-  /* Finished / Trash tables same style */
+  
   .ft-table-wrap { margin-top: 16px; }
 
-  /* â”€â”€ SCROLLBAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
@@ -569,21 +607,23 @@
 </head>
 <body>
 
-<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• LOGIN PAGE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
 <div id="login-page">
 
-  <!-- Sign up button fixed to top-right corner of the screen -->
-  <button class="signup-corner-btn" id="toggle-signup-btn">Sign up</button>
+  <button class="signup-corner-btn" id="toggle-signup-btn" type="button">Sign up</button>
 
   <div class="login-card" id="login-card">
 
-    <div class="login-logo">Learn<span>self</span></div>
+    <div class="login-logo">
+      <img class="brand-mark" src="./webicon.png" alt="LearnSelf logo">
+      <div class="brand-copy">
+        <div>Learn<span>self</span></div>
+        <small>Study Flow</small>
+      </div>
+    </div>
 
-    <!-- Sub-line changes based on mode -->
     <div class="login-sub login-sub-login">Student assignment manager</div>
     <div class="login-sub login-sub-signup">Create your free account</div>
 
-    <!-- === LOGIN FIELDS === -->
     <div id="login-fields">
       <div class="field-wrap">
         <label class="field-label" for="login-email">Email</label>
@@ -598,12 +638,11 @@
         </div>
         <div class="field-error" id="err-pw">Password must be at least 5 characters.</div>
       </div>
-      <button class="login-btn" id="login-btn">Log in</button>
+      <button class="login-btn" id="login-btn" type="button">Log in</button>
       <div class="forgot-pw">Forgot password? <a href="#" id="open-fp">Click here</a></div>
       <div class="status-banner info" id="login-status"></div>
     </div>
 
-    <!-- === SIGNUP FIELDS (hidden by default) === -->
     <div id="signup-fields" style="display:none;">
       <div class="field-wrap">
         <label class="field-label" for="su-name">Full Name</label>
@@ -623,14 +662,13 @@
         </div>
         <div class="field-error" id="err-su-pw">Password must be at least 5 characters.</div>
       </div>
-      <button class="login-btn" id="signup-btn">Create Account</button>
+      <button class="login-btn" id="signup-btn" type="button">Create Account</button>
       <div class="forgot-pw" style="margin-top:12px;">Already have an account? <a href="#" id="back-to-login">Log in</a></div>
       <div class="status-banner info" id="signup-status"></div>
     </div>
 
   </div>
 
-  <!-- FORGOT PASSWORD MODAL -->
   <div class="fp-overlay" id="fp-overlay">
     <div class="fp-modal">
       <button class="fp-close" id="fp-close">âœ•</button>
@@ -650,12 +688,16 @@
   </div>
 </div>
 
-<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• APP PAGE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
 <div id="app-page">
 
-  <!-- HEADER -->
   <header>
-    <div class="header-logo">Learn<span>self</span></div>
+    <div class="header-logo">
+      <img class="brand-mark" src="./webicon.png" alt="LearnSelf logo">
+      <div class="brand-copy">
+        <div>Learn<span>self</span></div>
+        <small>Study Flow</small>
+      </div>
+    </div>
     <nav>
       <button class="nav-btn active" data-view="dashboard">Dashboard</button>
       <button class="nav-btn" data-view="finished">Finished</button>
@@ -670,7 +712,6 @@
     </div>
   </header>
 
-  <!-- â”€â”€ DASHBOARD VIEW â”€â”€ -->
   <div class="view active" id="view-dashboard">
     <div class="dash-top">
       <div class="bulk-actions" id="bulk-actions">
@@ -708,7 +749,6 @@
     </div>
   </div>
 
-  <!-- â”€â”€ FINISHED VIEW â”€â”€ -->
   <div class="view" id="view-finished">
     <div class="simple-view-card">
       <div class="view-title">Finished âœ“</div>
@@ -730,7 +770,6 @@
     </div>
   </div>
 
-  <!-- â”€â”€ TRASH VIEW â”€â”€ -->
   <div class="view" id="view-trash">
     <div class="simple-view-card">
       <div class="view-title">Trash ðŸ—‘</div>
@@ -751,7 +790,6 @@
     </div>
   </div>
 
-  <!-- â”€â”€ TOOLS VIEW â”€â”€ -->
   <div class="view" id="view-tools">
     <div class="simple-view-card">
       <div class="view-title">Tools ðŸ› </div>
@@ -781,7 +819,6 @@
     </div>
   </div>
 
-  <!-- â”€â”€ HELP VIEW â”€â”€ -->
   <div class="view" id="view-help">
     <div class="simple-view-card">
       <div class="view-title">Help ðŸ’¡</div>
@@ -807,7 +844,6 @@
     </div>
   </div>
 
-  <!-- â”€â”€ PROFILE VIEW â”€â”€ -->
   <div class="view" id="view-profile">
     <div class="simple-view-card" style="max-width:480px;">
       <div class="profile-avatar-big" id="profile-avatar-big">S</div>
@@ -826,7 +862,6 @@
     </div>
   </div>
 
-  <!-- â”€â”€ SETTINGS VIEW â”€â”€ -->
   <div class="view" id="view-settings">
     <div class="simple-view-card" style="max-width:440px;">
       <div class="view-title">Settings âš™</div>
@@ -849,12 +884,7 @@
     </div>
   </div>
 
-</div><!-- end app-page -->
-
-<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• MODALS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
-
-<!-- ADD ASSIGNMENT MODAL -->
-<div class="overlay" id="add-overlay">
+</div><div class="overlay" id="add-overlay">
   <div class="modal">
     <div class="modal-head">
       <div class="modal-title">New Assignment</div>
@@ -906,7 +936,6 @@
   </div>
 </div>
 
-<!-- VIEW ASSIGNMENT MODAL -->
 <div class="overlay" id="view-overlay">
   <div class="modal" style="width:520px;">
     <div class="modal-head">
@@ -935,7 +964,9 @@ document.getElementById('login-btn').addEventListener('click', doLogin);
 document.getElementById('login-pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('signup-btn').addEventListener('click', doSignup);
 document.getElementById('su-pw').addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
-document.getElementById('toggle-signup-btn').addEventListener('click', () => showSignup(true));
+document.getElementById('toggle-signup-btn').addEventListener('click', () => {
+  showSignup(!isSignupMode());
+});
 document.getElementById('back-to-login').addEventListener('click', e => { e.preventDefault(); showSignup(false); });
 document.getElementById('open-fp').addEventListener('click', openForgotPassword);
 document.getElementById('fp-close').addEventListener('click', closeForgotPassword);
@@ -1096,16 +1127,27 @@ function setButtonLoading(id, isLoading, loadingText, idleText) {
   btn.textContent = isLoading ? loadingText : (idleText || btn.dataset.idleText);
 }
 
+function isSignupMode() {
+  return document.getElementById('login-card').classList.contains('signup-mode');
+}
+
 function showSignup(isSignup, preserveStatus = false) {
+  const card = document.getElementById('login-card');
   document.getElementById('login-fields').style.display = isSignup ? 'none' : 'block';
   document.getElementById('signup-fields').style.display = isSignup ? 'block' : 'none';
   document.getElementById('toggle-signup-btn').textContent = isSignup ? 'Log in' : 'Sign up';
+  card.classList.toggle('signup-mode', isSignup);
   ['err-email', 'err-pw', 'err-su-name', 'err-su-email', 'err-su-pw'].forEach(id => {
     document.getElementById(id).classList.remove('show');
   });
   if (!preserveStatus) {
     clearStatus('login-status');
     clearStatus('signup-status');
+  }
+  if (isSignup) {
+    document.getElementById('su-name').focus();
+  } else {
+    document.getElementById('login-email').focus();
   }
 }
 
@@ -1639,3 +1681,5 @@ function updateStats() {
 </script>
 </body>
 </html>
+
+

@@ -1,0 +1,438 @@
+import { useEffect, useMemo, useState } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { AppShell } from './components/layout/AppShell';
+import { AuthPage } from './components/auth/AuthPage';
+import { DashboardView } from './components/dashboard/DashboardView';
+import { ForgotPasswordModal } from './components/modals/ForgotPasswordModal';
+import { AddAssignmentModal } from './components/modals/AddAssignmentModal';
+import { AssignmentDetailModal } from './components/modals/AssignmentDetailModal';
+import { SimpleTableView } from './components/views/SimpleTableView';
+import { ToolsView } from './components/views/ToolsView';
+import { HelpView } from './components/views/HelpView';
+import { ProfileView } from './components/views/ProfileView';
+import { SettingsView } from './components/views/SettingsView';
+import { getInitialUser, sortAssignments } from './lib/assignment';
+import { createSupabaseBrowserClient, fetchAssignments, insertAssignment, mapUser, updateAssignmentStatuses, getSupabaseConfig } from './lib/supabase';
+import type { Assignment, AssignmentFormValues, StatusMessage, UserProfile, ViewName } from './types';
+
+const emptyAssignmentForm: AssignmentFormValues = {
+  name: '',
+  cls: '',
+  difficulty: '',
+  ad: '',
+  due: '',
+  desc: ''
+};
+
+export default function App() {
+  const [client, setClient] = useState<SupabaseClient | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(getInitialUser());
+  const [activeView, setActiveView] = useState<ViewName>('dashboard');
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [finished, setFinished] = useState<Assignment[]>([]);
+  const [trash, setTrash] = useState<Assignment[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [isSignup, setIsSignup] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [signupLoading, setSignupLoading] = useState(false);
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
+  const [addLoading, setAddLoading] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [signupName, setSignupName] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
+  const [forgotPasswordError, setForgotPasswordError] = useState<string>();
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [loginErrors, setLoginErrors] = useState<{ email?: string; password?: string }>({});
+  const [signupErrors, setSignupErrors] = useState<{ name?: string; email?: string; password?: string }>({});
+  const [addForm, setAddForm] = useState<AssignmentFormValues>(emptyAssignmentForm);
+  const [addFormErrors, setAddFormErrors] = useState<Partial<Record<keyof AssignmentFormValues, string>>>({});
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [loginStatus, setLoginStatus] = useState<StatusMessage | null>(null);
+  const [signupStatus, setSignupStatus] = useState<StatusMessage | null>(null);
+  const [forgotPasswordStatus, setForgotPasswordStatus] = useState<StatusMessage | null>(null);
+
+  const sortedAssignments = useMemo(() => sortAssignments(assignments), [assignments]);
+
+  useEffect(() => {
+    const { client: supabaseClient, config } = createSupabaseBrowserClient();
+    if (!config.supabaseUrl || !config.supabaseAnonKey) {
+      setLoginStatus({
+        tone: 'info',
+        text: 'Add your Supabase URL and anon key before logging in. The app is already wired for auth and assignment data.'
+      });
+      setSignupStatus({
+        tone: 'info',
+        text: 'Supabase is not configured yet. Add the values through Vite env vars or window.LEARNSELF_CONFIG.'
+      });
+      setIsCheckingSession(false);
+      return;
+    }
+
+    if (!supabaseClient) {
+      setLoginStatus({ tone: 'error', text: 'Supabase client could not be created.' });
+      setIsCheckingSession(false);
+      return;
+    }
+
+    setClient(supabaseClient);
+
+    supabaseClient.auth.getSession().then(async ({ data, error }) => {
+      if (error) {
+        setLoginStatus({ tone: 'error', text: error.message || 'Unable to restore your session.' });
+        setIsCheckingSession(false);
+        return;
+      }
+
+      if (data.session?.user) {
+        await hydrateUserSession(supabaseClient, data.session.user.id, mapUser(data.session.user));
+      }
+      setIsCheckingSession(false);
+    });
+
+    const { data: authListener } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        resetAppState();
+        return;
+      }
+      if (session?.user) {
+        await hydrateUserSession(supabaseClient, session.user.id, mapUser(session.user));
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  async function hydrateUserSession(activeClient: SupabaseClient, userId: string, profile: UserProfile) {
+    setCurrentUser(profile);
+    setLoginStatus(null);
+    setSignupStatus(null);
+    setLoginPassword('');
+    setSignupPassword('');
+
+    try {
+      const allAssignments = await fetchAssignments(activeClient, userId);
+      setAssignments(allAssignments.filter((item) => item.status === 'active'));
+      setFinished(allAssignments.filter((item) => item.status === 'finished'));
+      setTrash(allAssignments.filter((item) => item.status === 'trashed'));
+      setActiveView('dashboard');
+      setSelectedIds([]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to load assignments.';
+      setLoginStatus({ tone: 'error', text: `Signed in, but loading assignments failed: ${message}` });
+      setAssignments([]);
+      setFinished([]);
+      setTrash([]);
+    }
+  }
+
+  function resetAppState() {
+    setCurrentUser(getInitialUser());
+    setAssignments([]);
+    setFinished([]);
+    setTrash([]);
+    setSelectedIds([]);
+    setSelectedAssignment(null);
+    setActiveView('dashboard');
+    setLoginPassword('');
+    setForgotPasswordOpen(false);
+    setForgotPasswordSuccess(false);
+  }
+
+  function validateLogin() {
+    const nextErrors: typeof loginErrors = {};
+    if (!loginEmail.trim()) nextErrors.email = 'Please enter your email.';
+    if (loginPassword.trim().length < 5) nextErrors.password = 'Password must be at least 5 characters.';
+    setLoginErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
+  function validateSignup() {
+    const nextErrors: typeof signupErrors = {};
+    if (!signupName.trim()) nextErrors.name = 'Please enter your name.';
+    if (!signupEmail.includes('@')) nextErrors.email = 'Please enter a valid email.';
+    if (signupPassword.trim().length < 5) nextErrors.password = 'Password must be at least 5 characters.';
+    setSignupErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
+  function validateAssignmentForm() {
+    const nextErrors: typeof addFormErrors = {};
+    if (!addForm.name.trim()) nextErrors.name = 'Name is required.';
+    if (!addForm.difficulty) nextErrors.difficulty = 'Difficulty is required.';
+    if (!addForm.due) nextErrors.due = 'Due date is required.';
+    setAddFormErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
+  async function handleLogin() {
+    if (!validateLogin() || !client) return;
+    setLoginLoading(true);
+    setLoginStatus(null);
+
+    try {
+      const { data, error } = await client.auth.signInWithPassword({
+        email: loginEmail.trim(),
+        password: loginPassword.trim()
+      });
+
+      if (error) throw error;
+      if (data.user) {
+        await hydrateUserSession(client, data.user.id, mapUser(data.user));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to log in.';
+      setLoginStatus({ tone: 'error', text: message });
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+
+  async function handleSignup() {
+    if (!validateSignup() || !client) return;
+    setSignupLoading(true);
+    setSignupStatus(null);
+
+    try {
+      const { siteUrl } = getSupabaseConfig();
+      const { data, error } = await client.auth.signUp({
+        email: signupEmail.trim(),
+        password: signupPassword.trim(),
+        options: {
+          data: { full_name: signupName.trim() },
+          emailRedirectTo: siteUrl
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.session?.user) {
+        await hydrateUserSession(client, data.session.user.id, mapUser(data.session.user));
+      } else {
+        setIsSignup(false);
+        setLoginEmail(signupEmail.trim());
+        setSignupPassword('');
+        setLoginStatus({ tone: 'success', text: 'Account created. Check your email to confirm your account before logging in.' });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to create your account.';
+      setSignupStatus({ tone: 'error', text: message });
+    } finally {
+      setSignupLoading(false);
+    }
+  }
+
+  async function handleForgotPassword() {
+    if (!forgotPasswordEmail.includes('@') || !client) {
+      setForgotPasswordError('Please enter your email.');
+      return;
+    }
+
+    setForgotPasswordLoading(true);
+    setForgotPasswordError(undefined);
+    setForgotPasswordStatus(null);
+
+    try {
+      const { siteUrl } = getSupabaseConfig();
+      const { error } = await client.auth.resetPasswordForEmail(forgotPasswordEmail.trim(), { redirectTo: siteUrl });
+      if (error) throw error;
+      setForgotPasswordSuccess(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to send reset email.';
+      setForgotPasswordStatus({ tone: 'error', text: message });
+    } finally {
+      setForgotPasswordLoading(false);
+    }
+  }
+
+  async function handleAddAssignment() {
+    if (!validateAssignmentForm() || !client || !currentUser.id || !addForm.difficulty) return;
+    setAddLoading(true);
+
+    try {
+      const saved = await insertAssignment(
+        client,
+        {
+          id: '',
+          name: addForm.name.trim(),
+          cls: addForm.cls.trim(),
+          difficulty: addForm.difficulty,
+          ad: addForm.ad,
+          due: addForm.due,
+          desc: addForm.desc.trim(),
+          status: 'active'
+        },
+        currentUser.id
+      );
+
+      setAssignments((current) => [...current, saved]);
+      setAddModalOpen(false);
+      setAddForm(emptyAssignmentForm);
+      setAddFormErrors({});
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not save assignment.';
+      setLoginStatus({ tone: 'error', text: `Could not save assignment: ${message}` });
+    } finally {
+      setAddLoading(false);
+    }
+  }
+
+  async function moveAssignments(status: 'finished' | 'trashed') {
+    if (!client || !currentUser.id || !selectedIds.length) return;
+
+    try {
+      await updateAssignmentStatuses(client, currentUser.id, selectedIds, status);
+      const moving = assignments.filter((item) => selectedIds.includes(item.id)).map((item) => ({ ...item, status }));
+      setAssignments((current) => current.filter((item) => !selectedIds.includes(item.id)));
+      if (status === 'finished') setFinished((current) => [...current, ...moving]);
+      if (status === 'trashed') setTrash((current) => [...current, ...moving]);
+      setSelectedIds([]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Action failed.';
+      setLoginStatus({ tone: 'error', text: `Could not update assignments: ${message}` });
+    }
+  }
+
+  async function handleLogout() {
+    if (!client) {
+      resetAppState();
+      return;
+    }
+
+    const { error } = await client.auth.signOut();
+    if (error) {
+      setLoginStatus({ tone: 'error', text: error.message || 'Unable to log out cleanly.' });
+      return;
+    }
+    resetAppState();
+  }
+
+  function handleToggleSelectAll(checked: boolean) {
+    setSelectedIds(checked ? sortedAssignments.map((item) => item.id) : []);
+  }
+
+  function handleToggleSelected(id: string, checked: boolean) {
+    setSelectedIds((current) => checked ? [...current, id] : current.filter((item) => item !== id));
+  }
+
+  function renderView() {
+    switch (activeView) {
+      case 'dashboard':
+        return (
+          <DashboardView
+            assignments={sortedAssignments}
+            selectedIds={selectedIds}
+            onToggleSelected={handleToggleSelected}
+            onToggleSelectAll={handleToggleSelectAll}
+            onOpenAddModal={() => { setAddForm(emptyAssignmentForm); setAddFormErrors({}); setAddModalOpen(true); }}
+            onOpenDetails={setSelectedAssignment}
+            onBulkFinish={() => void moveAssignments('finished')}
+            onBulkDelete={() => void moveAssignments('trashed')}
+          />
+        );
+      case 'finished':
+        return <SimpleTableView id="finished-table" title="Finished" subtitle="Assignments you have marked as complete." accentClass="green-soft" assignments={finished} showDifficulty emptyMessage="No finished assignments yet." />;
+      case 'trash':
+        return <SimpleTableView id="trash-table" title="Trash" subtitle="Deleted assignments. They are archived here." accentClass="red-soft" assignments={trash} emptyMessage="Trash is empty." />;
+      case 'tools':
+        return <ToolsView />;
+      case 'help':
+        return <HelpView />;
+      case 'profile':
+        return <ProfileView currentUser={currentUser} activeCount={assignments.length} finishedCount={finished.length} />;
+      case 'settings':
+        return <SettingsView onLogout={() => void handleLogout()} />;
+      default:
+        return null;
+    }
+  }
+
+  const isLoggedIn = Boolean(currentUser.id);
+
+  return (
+    <>
+      {!isLoggedIn ? (
+        <>
+          <AuthPage
+            isSignup={isSignup}
+            loginEmail={loginEmail}
+            loginPassword={loginPassword}
+            signupName={signupName}
+            signupEmail={signupEmail}
+            signupPassword={signupPassword}
+            showLoginPassword={showLoginPassword}
+            showSignupPassword={showSignupPassword}
+            loginErrors={loginErrors}
+            signupErrors={signupErrors}
+            loginStatus={isCheckingSession ? { tone: 'info', text: 'Checking session...' } : loginStatus}
+            signupStatus={signupStatus}
+            loginLoading={loginLoading || isCheckingSession}
+            signupLoading={signupLoading}
+            onToggleMode={(nextSignup) => {
+              setIsSignup(nextSignup);
+              setLoginErrors({});
+              setSignupErrors({});
+              setSignupStatus(null);
+              setLoginStatus(null);
+            }}
+            onLoginEmailChange={setLoginEmail}
+            onLoginPasswordChange={setLoginPassword}
+            onSignupNameChange={setSignupName}
+            onSignupEmailChange={setSignupEmail}
+            onSignupPasswordChange={setSignupPassword}
+            onToggleLoginPassword={() => setShowLoginPassword((current) => !current)}
+            onToggleSignupPassword={() => setShowSignupPassword((current) => !current)}
+            onLoginSubmit={() => void handleLogin()}
+            onSignupSubmit={() => void handleSignup()}
+            onForgotPasswordOpen={() => {
+              setForgotPasswordOpen(true);
+              setForgotPasswordSuccess(false);
+              setForgotPasswordError(undefined);
+              setForgotPasswordStatus(null);
+            }}
+          />
+          <ForgotPasswordModal
+            open={forgotPasswordOpen}
+            email={forgotPasswordEmail}
+            loading={forgotPasswordLoading}
+            success={forgotPasswordSuccess}
+            error={forgotPasswordError}
+            status={forgotPasswordStatus}
+            onEmailChange={setForgotPasswordEmail}
+            onClose={() => {
+              setForgotPasswordOpen(false);
+              setForgotPasswordSuccess(false);
+              setForgotPasswordStatus(null);
+            }}
+            onSubmit={() => void handleForgotPassword()}
+          />
+        </>
+      ) : (
+        <AppShell currentView={activeView} currentUser={currentUser} onViewChange={setActiveView}>
+          {renderView()}
+        </AppShell>
+      )}
+
+      <AddAssignmentModal
+        open={addModalOpen}
+        values={addForm}
+        errors={addFormErrors}
+        loading={addLoading}
+        onClose={() => setAddModalOpen(false)}
+        onChange={(field, value) => setAddForm((current) => ({ ...current, [field]: value }))}
+        onSubmit={() => void handleAddAssignment()}
+      />
+      <AssignmentDetailModal assignment={selectedAssignment} onClose={() => setSelectedAssignment(null)} />
+    </>
+  );
+}
+

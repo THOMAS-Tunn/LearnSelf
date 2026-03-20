@@ -21,38 +21,35 @@ interface AssignmentRow {
   created_at?: string | null;
 }
 
-export function getSupabaseConfig(): LearnSelfConfig {
-  const fromWindow = window.LEARNSELF_CONFIG || {};
-  const fromMeta = (name: string) => document.querySelector(`meta[name="${name}"]`)?.getAttribute('content')?.trim() || '';
-  const fromGlobal = (name: 'VITE_SUPABASE_URL' | 'VITE_SUPABASE_ANON_KEY') => {
-    const value = import.meta.env[name];
-    return typeof value === 'string' ? value.trim() : '';
-  };
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '';
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim() || '';
+const siteUrl = (import.meta.env.VITE_SITE_URL as string | undefined)?.trim() || window.location.origin;
 
-  return {
-    supabaseUrl: fromWindow.supabaseUrl || fromGlobal('VITE_SUPABASE_URL') || fromMeta('learnself-supabase-url'),
-    supabaseAnonKey: fromWindow.supabaseAnonKey || fromGlobal('VITE_SUPABASE_ANON_KEY') || fromMeta('learnself-supabase-anon-key'),
-    siteUrl: fromWindow.siteUrl || fromMeta('learnself-site-url') || window.location.origin
-  };
+if (import.meta.env.DEV && (!supabaseUrl || !supabaseAnonKey)) {
+  console.warn('[learnself] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Auth will be disabled until configured.');
 }
 
-export function createSupabaseBrowserClient() {
-  const config = getSupabaseConfig();
-  if (!config.supabaseUrl || !config.supabaseAnonKey) {
-    return { client: null, config };
-  }
+export const supabaseConfig: LearnSelfConfig = {
+  supabaseUrl,
+  supabaseAnonKey,
+  siteUrl
+};
 
-  return {
-    client: createClient(config.supabaseUrl, config.supabaseAnonKey, {
+export const isSupabaseConfigured = Boolean(supabaseConfig.supabaseUrl && supabaseConfig.supabaseAnonKey);
+
+export const supabase: SupabaseClient | null = isSupabaseConfigured
+  ? createClient(supabaseConfig.supabaseUrl, supabaseConfig.supabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
         storageKey: SUPABASE_STORAGE_KEY
       }
-    }),
-    config
-  };
+    })
+  : null;
+
+export function getSupabaseConfig() {
+  return supabaseConfig;
 }
 
 export function mapUser(user: User): UserProfile {

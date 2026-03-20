@@ -13,7 +13,7 @@ import { HelpView } from './components/views/HelpView';
 import { ProfileView } from './components/views/ProfileView';
 import { SettingsView } from './components/views/SettingsView';
 import { getInitialUser, sortAssignments } from './lib/assignment';
-import { createSupabaseBrowserClient, fetchAssignments, insertAssignment, mapUser, updateAssignmentStatuses, getSupabaseConfig } from './lib/supabase';
+import { fetchAssignments, insertAssignment, mapUser, updateAssignmentStatuses, getSupabaseConfig, supabase, isSupabaseConfigured } from './lib/supabase';
 import type { Assignment, AssignmentFormValues, StatusMessage, UserProfile, ViewName } from './types';
 
 const emptyAssignmentForm: AssignmentFormValues = {
@@ -123,42 +123,42 @@ export default function App() {
   }
 
   useEffect(() => {
-    const { client: supabaseClient, config } = createSupabaseBrowserClient();
-    if (!config.supabaseUrl || !config.supabaseAnonKey) {
+    if (!isSupabaseConfigured || !supabase) {
       setLoginStatus({
         tone: 'info',
-        text: 'Add your Supabase URL and anon key before logging in. The app is already wired for auth and assignment data.'
+        text: 'Add your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before logging in.'
       });
       setSignupStatus({
         tone: 'info',
-        text: 'Supabase is not configured yet. Add the values through Vite env vars or window.LEARNSELF_CONFIG.'
+        text: 'Supabase is not configured yet. Set values in your Vite/Netlify environment.'
       });
       setIsCheckingSession(false);
       return;
     }
 
-    if (!supabaseClient) {
-      setLoginStatus({ tone: 'error', text: 'Supabase client could not be created.' });
-      setIsCheckingSession(false);
-      return;
-    }
-
+    const supabaseClient = supabase;
     setClient(supabaseClient);
 
-    supabaseClient.auth.getSession().then(async ({ data, error }) => {
+    supabaseClient.auth.getUser().then(async ({ data, error }) => {
+      if (import.meta.env.DEV) {
+        console.info('[auth] boot:getUser', { hasUser: Boolean(data.user), userId: data.user?.id, error: error?.message });
+      }
       if (error) {
         setLoginStatus({ tone: 'error', text: error.message || 'Unable to restore your session.' });
         setIsCheckingSession(false);
         return;
       }
 
-      if (data.session?.user) {
-        await hydrateUserSession(supabaseClient, data.session.user.id, mapUser(data.session.user));
+      if (data.user) {
+        await hydrateUserSession(supabaseClient, data.user.id, mapUser(data.user));
       }
       setIsCheckingSession(false);
     });
 
     const { data: authListener } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      if (import.meta.env.DEV) {
+        console.info('[auth] state-change', { event, userId: session?.user?.id || null });
+      }
       if (event === 'PASSWORD_RECOVERY') {
         setResetPasswordOpen(true);
         setResetPasswordStatus({ tone: 'info', text: 'Recovery link accepted. Enter your new password below.' });
@@ -169,6 +169,8 @@ export default function App() {
       }
       if (session?.user) {
         await hydrateUserSession(supabaseClient, session.user.id, mapUser(session.user));
+      } else {
+        setCurrentUser(getInitialUser());
       }
     });
 
@@ -538,18 +540,12 @@ export default function App() {
       });
       const { error } = await Promise.race([signOutPromise, timeoutPromise]);
       if (error) {
-        const isMissingSession = error.message?.toLowerCase().includes('session') || isRecoverableSessionError(error);
-        if (isMissingSession) {
-          const { error: localError } = await client.auth.signOut({ scope: 'local' });
-          if (localError && !localError.message?.toLowerCase().includes('session')) {
-            throw localError;
-          }
-        } else {
-          throw error;
-        }
+        throw error;
       }
+      await client.auth.signOut({ scope: 'local' });
       resetAppState();
     } catch (error) {
+      await client.auth.signOut({ scope: 'local' });
       resetAppState();
       setLoginStatus({
         tone: 'info',

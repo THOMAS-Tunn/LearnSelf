@@ -1,9 +1,7 @@
 /// <reference types="vite/client" />
 
-interface Window {
-  LEARNSELF_CONFIG?: {
-    supabaseUrl?: string;
-    supabaseAnonKey?: string;
-    siteUrl?: string;
-  };
+interface ImportMetaEnv {
+  readonly VITE_SUPABASE_URL?: string;
+  readonly VITE_SUPABASE_ANON_KEY?: string;
+  readonly VITE_SITE_URL?: string;
 }

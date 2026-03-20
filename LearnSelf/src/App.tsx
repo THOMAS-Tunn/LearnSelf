@@ -122,16 +122,6 @@ export default function App() {
     setLoginStatus({ tone: 'info', text: message });
   }
 
-  async function resolveValidSessionUser(activeClient: SupabaseClient, fallbackUserId?: string) {
-    const { data, error } = await activeClient.auth.getUser();
-    if (error) throw error;
-    const user = data.user;
-    if (!user && fallbackUserId) {
-      throw new Error('Your account session no longer exists on the server.');
-    }
-    return user;
-  }
-
   useEffect(() => {
     const { client: supabaseClient, config } = createSupabaseBrowserClient();
     if (!config.supabaseUrl || !config.supabaseAnonKey) {
@@ -163,21 +153,7 @@ export default function App() {
       }
 
       if (data.session?.user) {
-        try {
-          const validUser = await resolveValidSessionUser(supabaseClient, data.session.user.id);
-          if (validUser) {
-            await hydrateUserSession(supabaseClient, validUser.id, mapUser(validUser));
-          } else {
-            await recoverBrokenSession('Your previous session is no longer valid. Please log in again.');
-          }
-        } catch (sessionError) {
-          if (isRecoverableSessionError(sessionError)) {
-            await recoverBrokenSession();
-          } else {
-            const message = sessionError instanceof Error ? sessionError.message : 'Unable to validate your saved session.';
-            setLoginStatus({ tone: 'error', text: message });
-          }
-        }
+        await hydrateUserSession(supabaseClient, data.session.user.id, mapUser(data.session.user));
       }
       setIsCheckingSession(false);
     });
@@ -192,22 +168,7 @@ export default function App() {
         return;
       }
       if (session?.user) {
-        try {
-          const validUser = await resolveValidSessionUser(supabaseClient, session.user.id);
-          if (validUser) {
-            await hydrateUserSession(supabaseClient, validUser.id, mapUser(validUser));
-          } else {
-            await recoverBrokenSession('This session is no longer available. Please log in again.');
-          }
-        } catch (sessionError) {
-          if (isRecoverableSessionError(sessionError)) {
-            await recoverBrokenSession();
-            return;
-          }
-
-          const message = sessionError instanceof Error ? sessionError.message : 'Unable to refresh your account session.';
-          setLoginStatus({ tone: 'error', text: message });
-        }
+        await hydrateUserSession(supabaseClient, session.user.id, mapUser(session.user));
       }
     });
 

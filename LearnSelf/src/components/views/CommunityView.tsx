@@ -590,12 +590,12 @@ export function CommunityView(props: CommunityViewProps) {
                     <div>
                       <div className="community-comments-title">
                         Comments
+                        <div className="community-comments-count">{displayComments.length}</div>
                         <InfoTip
                           text="Comments are public. Sort by most liked, newest, or oldest."
                           placement="top"
                         />
                       </div>
-                      <div className="community-comments-count">{displayComments.length}</div>
                     </div>
                     <label className="community-comment-filter">
                       <span>Sort</span>
@@ -729,21 +729,6 @@ export function CommunityView(props: CommunityViewProps) {
           {props.status?.text ? (
             <div className={`status-banner ${props.status.tone}`}>{props.status.text}</div>
           ) : null}
-
-          <div className="community-guidance">
-            <div className="community-guidance-row">
-              <strong>Delete</strong>
-              <span>Only the poster sees Delete, only within the first 24 hours.</span>
-            </div>
-            <div className="community-guidance-row">
-              <strong>Pin + Favorite</strong>
-              <span>Pin keeps a post at the top. Favorite saves it to your collections.</span>
-            </div>
-            <div className="community-guidance-row">
-              <strong>Hide</strong>
-              <span>Hidden posts move to Archived for you only.</span>
-            </div>
-          </div>
 
           <div className="community-form">
             <div className="modal-field">

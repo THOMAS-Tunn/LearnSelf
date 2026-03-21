@@ -2495,7 +2495,7 @@ tbody tr:nth-child(n + 8) {
 }
 
 .community-fab {
-  display: none;
+  display: flex;
   position: fixed;
   bottom: 24px;
   right: 24px;
@@ -2708,10 +2708,6 @@ tbody tr:nth-child(n + 8) {
 
   .community-compose-card {
     display: none;
-  }
-
-  .community-fab {
-    display: flex;
   }
 
   .friends-layout {

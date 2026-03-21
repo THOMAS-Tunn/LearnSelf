@@ -28,7 +28,16 @@ import {
   setCommunityPostPinned
 } from './lib/community';
 import { addFriend, fetchFriends, removeFriendships, searchDirectoryProfiles, syncUserDirectoryProfile } from './lib/social';
-import { createSupabaseBrowserClient, fetchAssignments, getInitialBrowserSession, insertAssignment, mapUser, updateAssignmentStatuses, getSupabaseConfig } from './lib/supabase';
+import {
+  createSupabaseBrowserClient,
+  deleteAssignments,
+  fetchAssignments,
+  getInitialBrowserSession,
+  getSupabaseConfig,
+  insertAssignment,
+  mapUser,
+  updateAssignmentStatuses
+} from './lib/supabase';
 import type {
   Assignment,
   AssignmentFormValues,
@@ -237,11 +246,25 @@ export default function App() {
   const sessionLoadRequestRef = useRef(0);
 
   const sortedAssignments = useMemo(() => sortAssignments(assignments), [assignments]);
+  const selectableAssignments = useMemo(() => {
+    switch (activeView) {
+      case 'finished':
+        return finished;
+      case 'trash':
+        return trash;
+      default:
+        return sortedAssignments;
+    }
+  }, [activeView, finished, sortedAssignments, trash]);
   const friendIds = useMemo(() => friends.map((friend) => friend.userId), [friends]);
   const visibleCommunityPosts = useMemo(
     () => filterCommunityPosts(communityPosts, communitySection, currentUser.id, friendIds),
     [communityPosts, communitySection, currentUser.id, friendIds]
   );
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [activeView]);
 
   function isRecoverableSessionError(error: unknown) {
     const message = getErrorMessage(error, '').toLowerCase();
@@ -1192,7 +1215,7 @@ export default function App() {
     }
   }
 
-  async function moveAssignments(status: 'finished' | 'trashed') {
+  async function moveSelectedAssignments(fromStatus: 'active' | 'finished', nextStatus: 'finished' | 'trashed') {
     if (!client || !selectedIds.length) return;
 
     try {
@@ -1203,11 +1226,31 @@ export default function App() {
         throw new Error('You are no longer signed in. Please log in again and retry.');
       }
 
-      await updateAssignmentStatuses(client, userId, selectedIds, status);
-      const moving = assignments.filter((item) => selectedIds.includes(item.id)).map((item) => ({ ...item, status }));
-      setAssignments((current) => current.filter((item) => !selectedIds.includes(item.id)));
-      if (status === 'finished') setFinished((current) => [...current, ...moving]);
-      if (status === 'trashed') setTrash((current) => [...current, ...moving]);
+      await updateAssignmentStatuses(client, userId, selectedIds, nextStatus);
+
+      const sourceAssignments = fromStatus === 'active' ? assignments : finished;
+      const moving = sourceAssignments
+        .filter((item) => selectedIds.includes(item.id))
+        .map((item) => ({ ...item, status: nextStatus }));
+
+      if (fromStatus === 'active') {
+        setAssignments((current) => current.filter((item) => !selectedIds.includes(item.id)));
+      } else {
+        setFinished((current) => current.filter((item) => !selectedIds.includes(item.id)));
+      }
+
+      if (nextStatus === 'finished') {
+        setFinished((current) => [...current, ...moving]);
+      }
+
+      if (nextStatus === 'trashed') {
+        setTrash((current) => [...current, ...moving]);
+      }
+
+      if (selectedAssignment && selectedIds.includes(selectedAssignment.id)) {
+        setSelectedAssignment(null);
+      }
+
       setSelectedIds([]);
     } catch (error) {
       if (isRecoverableSessionError(error)) {
@@ -1217,6 +1260,37 @@ export default function App() {
 
       const message = getErrorMessage(error, 'Action failed.');
       setLoginStatus({ tone: 'error', text: `Could not update assignments: ${message}` });
+    }
+  }
+
+  async function deleteSelectedAssignments() {
+    if (!client || !selectedIds.length) return;
+
+    try {
+      const { data: userData, error: userError } = await client.auth.getUser();
+      if (userError) throw userError;
+
+      const userId = userData.user?.id || currentUser.id;
+      if (!userId) {
+        throw new Error('You are no longer signed in. Please log in again and retry.');
+      }
+
+      await deleteAssignments(client, userId, selectedIds);
+      setTrash((current) => current.filter((item) => !selectedIds.includes(item.id)));
+
+      if (selectedAssignment && selectedIds.includes(selectedAssignment.id)) {
+        setSelectedAssignment(null);
+      }
+
+      setSelectedIds([]);
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      const message = getErrorMessage(error, 'Action failed.');
+      setLoginStatus({ tone: 'error', text: `Could not delete assignments: ${message}` });
     }
   }
 
@@ -1256,7 +1330,7 @@ export default function App() {
   }
 
   function handleToggleSelectAll(checked: boolean) {
-    setSelectedIds(checked ? sortedAssignments.map((item) => item.id) : []);
+    setSelectedIds(checked ? selectableAssignments.map((item) => item.id) : []);
   }
 
   function handleToggleSelected(id: string, checked: boolean) {
@@ -1274,8 +1348,8 @@ export default function App() {
             onToggleSelectAll={handleToggleSelectAll}
             onOpenAddModal={() => { setAddForm(emptyAssignmentForm); setAddFormErrors({}); setAddModalOpen(true); }}
             onOpenDetails={setSelectedAssignment}
-            onBulkFinish={() => void moveAssignments('finished')}
-            onBulkDelete={() => void moveAssignments('trashed')}
+            onBulkFinish={() => void moveSelectedAssignments('active', 'finished')}
+            onBulkDelete={() => void moveSelectedAssignments('active', 'trashed')}
           />
         );
       case 'community':
@@ -1344,9 +1418,38 @@ export default function App() {
           />
         );
       case 'finished':
-        return <SimpleTableView id="finished-table" title="Finished" subtitle="Assignments you have marked as complete." accentClass="green-soft" assignments={finished} showDifficulty emptyMessage="No finished assignments yet." />;
+        return (
+          <SimpleTableView
+            id="finished-table"
+            title="Finished"
+            subtitle="Assignments you have marked as complete."
+            accentClass="green-soft"
+            assignments={finished}
+            showDifficulty
+            emptyMessage="No finished assignments yet."
+            selectedIds={selectedIds}
+            onToggleSelected={handleToggleSelected}
+            onToggleSelectAll={handleToggleSelectAll}
+            onBulkDelete={() => void moveSelectedAssignments('finished', 'trashed')}
+            deleteLabel="Delete"
+          />
+        );
       case 'trash':
-        return <SimpleTableView id="trash-table" title="Trash" subtitle="Deleted assignments. They are archived here." accentClass="red-soft" assignments={trash} emptyMessage="Trash is empty." />;
+        return (
+          <SimpleTableView
+            id="trash-table"
+            title="Trash"
+            subtitle="Deleted assignments. They are archived here."
+            accentClass="red-soft"
+            assignments={trash}
+            emptyMessage="Trash is empty."
+            selectedIds={selectedIds}
+            onToggleSelected={handleToggleSelected}
+            onToggleSelectAll={handleToggleSelectAll}
+            onBulkDelete={() => void deleteSelectedAssignments()}
+            deleteLabel="Delete Forever"
+          />
+        );
       case 'tools':
         return <ToolsView />;
       case 'help':

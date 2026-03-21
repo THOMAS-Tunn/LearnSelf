@@ -151,3 +151,8 @@ export async function updateAssignmentStatuses(
   const { error } = await client.from(SUPABASE_TABLE).update({ status }).eq('user_id', userId).in('id', ids);
   if (error) throw error;
 }
+
+export async function deleteAssignments(client: SupabaseClient, userId: string, ids: string[]) {
+  const { error } = await client.from(SUPABASE_TABLE).delete().eq('user_id', userId).in('id', ids);
+  if (error) throw error;
+}

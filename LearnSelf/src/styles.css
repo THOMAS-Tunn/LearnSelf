@@ -682,6 +682,88 @@ nav::-webkit-scrollbar {
   display: none;
 }
 
+.header-right-compact {
+  gap: 10px;
+}
+
+.header-avatar-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.header-menu-toggle {
+  width: 38px;
+  height: 38px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--white);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast);
+}
+
+.header-menu-toggle svg,
+.community-action-btn svg,
+.community-menu-item-icon svg {
+  display: block;
+}
+
+.header-menu-toggle:hover {
+  background: var(--yellow-soft);
+  border-color: var(--yellow-btn);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+.header-menu-toggle.active {
+  background: var(--yellow);
+  border-color: var(--yellow-btn);
+}
+
+.header-popout {
+  padding: 10px var(--page-px) 0;
+}
+
+.header-popout-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.header-popout-nav .nav-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.header-measure {
+  position: fixed;
+  inset: -9999px auto auto -9999px;
+  visibility: hidden;
+  pointer-events: none;
+  height: 0;
+  overflow: hidden;
+}
+
+.header-measure-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
 .nav-btn {
   border: 0;
   background: transparent;
@@ -1806,6 +1888,13 @@ tbody tr:nth-child(n + 8) {
   padding: 10px 14px;
 }
 
+.community-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 .community-section-btn.active {
   background: var(--blue-soft);
   border-color: var(--blue);
@@ -1837,6 +1926,7 @@ tbody tr:nth-child(n + 8) {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .community-compose-top,
@@ -1937,6 +2027,7 @@ tbody tr:nth-child(n + 8) {
 }
 
 .community-post-menu button {
+  width: 100%;
   text-align: left;
   border: 0;
   border-radius: 8px;
@@ -1947,6 +2038,19 @@ tbody tr:nth-child(n + 8) {
 
 .community-post-menu button:hover {
   background: var(--blue-soft);
+}
+
+.community-menu-item-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.community-menu-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-light);
 }
 
 .community-post-body {
@@ -2047,6 +2151,39 @@ tbody tr:nth-child(n + 8) {
 
 .community-submit-btn-small {
   min-width: 100px;
+}
+
+.community-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.community-action-btn-icon {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.community-action-btn.is-active {
+  background: var(--blue-soft);
+  border-color: var(--blue);
+  color: #1c5a80;
+}
+
+[data-theme="dark"] .community-action-btn.is-active {
+  color: #7fbcde;
+}
+
+.community-action-count {
+  min-width: 1ch;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-light);
+  text-align: center;
 }
 
 .community-empty-card {
@@ -2261,6 +2398,7 @@ tbody tr:nth-child(n + 8) {
 
 @media (hover: none) and (pointer: coarse) {
   .nav-btn,
+  .header-menu-toggle,
   .action-pill,
   .community-section-btn,
   .community-action-btn,

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { COMMUNITY_COMMENT_SORT_OPTIONS, COMMUNITY_SECTIONS } from '../../constants';
 import { canDeleteCommunityPost, getCommunityRelativeTime, getDeleteHelpText } from '../../lib/community';
 import { UserAvatar } from '../common/UserAvatar';
@@ -53,6 +53,63 @@ function sortComments(comments: CommunityComment[], sort: CommunityCommentSort) 
 
     return right.likesCount - left.likesCount || new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
   });
+}
+
+function ThumbUpIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M6.5 7L8.2 3.6C8.5 3 9.2 2.8 9.8 3C10.4 3.2 10.8 3.8 10.7 4.4L10.2 7H12.4C13.5 7 14.3 8 14 9L13.2 12.3C13 13.1 12.3 13.7 11.5 13.7H6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M2.3 7H5.4V13.7H2.3C1.9 13.7 1.5 13.4 1.5 12.9V7.8C1.5 7.4 1.9 7 2.3 7Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function StarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 2.1L9.6 5.4L13.3 5.9L10.6 8.4L11.2 12L8 10.3L4.8 12L5.4 8.4L2.7 5.9L6.4 5.4L8 2.1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M10.8 2.6L13.4 5.2L11.6 6.1L9.9 9.1L6.9 10.8L6 12.6L3.4 10L5.2 9.1L6.9 6.1L9.9 4.4L10.8 2.6Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M6 12.6L4.1 14.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ArchiveIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="2" y="3" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M3.4 6.1V11.9C3.4 12.7 4 13.3 4.8 13.3H11.2C12 13.3 12.6 12.7 12.6 11.9V6.1" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M6 8.6H10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M3.5 4.2H12.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M6.2 2.8H9.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M4.6 4.2L5.1 12.1C5.2 12.8 5.7 13.3 6.4 13.3H9.6C10.3 13.3 10.8 12.8 10.9 12.1L11.4 4.2" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M6.7 6.6V10.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M9.3 6.6V10.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function MenuItemLabel({ icon, label }: { icon: ReactNode; label: string }) {
+  return (
+    <span className="community-menu-item-label">
+      <span className="community-menu-item-icon">{icon}</span>
+      <span>{label}</span>
+    </span>
+  );
 }
 
 export function CommunityView(props: CommunityViewProps) {
@@ -140,7 +197,7 @@ export function CommunityView(props: CommunityViewProps) {
                             }}
                             disabled={props.actionLoadingKey === `delete-post:${post.id}`}
                           >
-                            {props.actionLoadingKey === `delete-post:${post.id}` ? 'Deleting...' : 'Delete'}
+                            <MenuItemLabel icon={<TrashIcon />} label={props.actionLoadingKey === `delete-post:${post.id}` ? 'Deleting...' : 'Delete'} />
                           </button>
                         ) : null}
                         <button
@@ -151,7 +208,7 @@ export function CommunityView(props: CommunityViewProps) {
                           }}
                           disabled={props.actionLoadingKey === `hide-post:${post.id}`}
                         >
-                          {post.hiddenByCurrentUser ? 'Unarchive' : 'Hide'}
+                          <MenuItemLabel icon={<ArchiveIcon />} label={post.hiddenByCurrentUser ? 'Unarchive' : 'Hide'} />
                         </button>
                         <button
                           type="button"
@@ -161,7 +218,7 @@ export function CommunityView(props: CommunityViewProps) {
                           }}
                           disabled={props.actionLoadingKey === `pin-post:${post.id}`}
                         >
-                          {post.pinnedByCurrentUser ? 'Unpin' : 'Pin'}
+                          <MenuItemLabel icon={<PinIcon />} label={post.pinnedByCurrentUser ? 'Unpin' : 'Pin'} />
                         </button>
                         <button
                           type="button"
@@ -171,7 +228,7 @@ export function CommunityView(props: CommunityViewProps) {
                           }}
                           disabled={props.actionLoadingKey === `favorite-post:${post.id}`}
                         >
-                          {post.favoritedByCurrentUser ? 'Unfavorite' : 'Favorite'}
+                          <MenuItemLabel icon={<StarIcon />} label={post.favoritedByCurrentUser ? 'Unfavorite' : 'Favorite'} />
                         </button>
                       </div>
                     ) : null}
@@ -190,14 +247,18 @@ export function CommunityView(props: CommunityViewProps) {
                 {isOwner ? <div className="community-owner-note">{getDeleteHelpText(post)}</div> : null}
 
                 <div className="community-post-actions">
-                  <button
-                    className="community-action-btn"
-                    type="button"
-                    onClick={() => props.onToggleLikePost(post)}
-                    disabled={props.actionLoadingKey === `like-post:${post.id}`}
-                  >
-                    {post.likedByCurrentUser ? 'Unlike' : 'Like'} ({post.likesCount})
-                  </button>
+                  <div className="community-action-group">
+                    <button
+                      className={`community-action-btn community-action-btn-icon ${post.likedByCurrentUser ? 'is-active' : ''}`}
+                      type="button"
+                      aria-label={post.likedByCurrentUser ? 'Remove like from post' : 'Like post'}
+                      onClick={() => props.onToggleLikePost(post)}
+                      disabled={props.actionLoadingKey === `like-post:${post.id}`}
+                    >
+                      <ThumbUpIcon />
+                    </button>
+                    <span className="community-action-count">{post.likesCount}</span>
+                  </div>
                 </div>
 
                 <div className="community-comments">
@@ -237,21 +298,25 @@ export function CommunityView(props: CommunityViewProps) {
                         <div className="community-comment-body">{comment.body}</div>
 
                         <div className="community-comment-actions">
-                          <button
-                            className="community-action-btn"
-                            type="button"
-                            onClick={() => props.onToggleLikeComment(post.id, comment)}
-                            disabled={props.actionLoadingKey === `like-comment:${comment.id}`}
-                          >
-                            {comment.likedByCurrentUser ? 'Unlike' : 'Like'} ({comment.likesCount})
-                          </button>
+                          <div className="community-action-group">
+                            <button
+                              className={`community-action-btn community-action-btn-icon ${comment.likedByCurrentUser ? 'is-active' : ''}`}
+                              type="button"
+                              aria-label={comment.likedByCurrentUser ? 'Remove like from comment' : 'Like comment'}
+                              onClick={() => props.onToggleLikeComment(post.id, comment)}
+                              disabled={props.actionLoadingKey === `like-comment:${comment.id}`}
+                            >
+                              <ThumbUpIcon />
+                            </button>
+                            <span className="community-action-count">{comment.likesCount}</span>
+                          </div>
                           <button
                             className="community-action-btn"
                             type="button"
                             onClick={() => props.onToggleFavoriteComment(post.id, comment)}
                             disabled={props.actionLoadingKey === `favorite-comment:${comment.id}`}
                           >
-                            {comment.favoritedByCurrentUser ? 'Unfavorite' : 'Favorite'}
+                            <StarIcon /> {comment.favoritedByCurrentUser ? 'Unfavorite' : 'Favorite'}
                           </button>
                         </div>
                       </div>

@@ -8,15 +8,41 @@ import { AddAssignmentModal } from './components/modals/AddAssignmentModal';
 import { AssignmentDetailModal } from './components/modals/AssignmentDetailModal';
 import { ResetPasswordModal } from './components/modals/ResetPasswordModal';
 import { CommunityView } from './components/views/CommunityView';
+import { FriendsView } from './components/views/FriendsView';
 import { SimpleTableView } from './components/views/SimpleTableView';
 import { ToolsView } from './components/views/ToolsView';
 import { HelpView } from './components/views/HelpView';
 import { ProfileView } from './components/views/ProfileView';
 import { SettingsView } from './components/views/SettingsView';
 import { getInitialUser, sortAssignments } from './lib/assignment';
-import { fetchCommunityPosts, insertCommunityComment, insertCommunityPost, withdrawCommunityPost } from './lib/community';
+import {
+  deleteCommunityPost,
+  fetchCommunityPosts,
+  insertCommunityComment,
+  insertCommunityPost,
+  setCommunityCommentFavorite,
+  setCommunityCommentLike,
+  setCommunityPostFavorite,
+  setCommunityPostHidden,
+  setCommunityPostLike,
+  setCommunityPostPinned
+} from './lib/community';
+import { addFriend, fetchFriends, removeFriendships, searchDirectoryProfiles, syncUserDirectoryProfile } from './lib/social';
 import { createSupabaseBrowserClient, fetchAssignments, getInitialBrowserSession, insertAssignment, mapUser, updateAssignmentStatuses, getSupabaseConfig } from './lib/supabase';
-import type { Assignment, AssignmentFormValues, CommunityPost, CommunityPostFormValues, StatusMessage, UserProfile, ViewName } from './types';
+import type {
+  Assignment,
+  AssignmentFormValues,
+  CommunityComment,
+  CommunityCommentSort,
+  CommunityFeedSection,
+  CommunityPost,
+  CommunityPostFormValues,
+  FriendRecord,
+  FriendSearchResult,
+  StatusMessage,
+  UserProfile,
+  ViewName
+} from './types';
 
 const emptyAssignmentForm: AssignmentFormValues = {
   name: '',
@@ -72,15 +98,68 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-function formatCommunityError(error: unknown, fallback: string) {
+function formatSocialError(error: unknown, fallback: string) {
   const message = getErrorMessage(error, fallback);
   const normalized = message.toLowerCase();
 
-  if (normalized.includes('community_posts') || normalized.includes('community_comments')) {
-    return 'Community is not set up yet. Run the SQL in supabase/community.sql, then refresh this tab.';
+  if (
+    normalized.includes('community_')
+    || normalized.includes('profiles')
+    || normalized.includes('friendships')
+  ) {
+    return 'Social features are not set up yet. Run the SQL in supabase/community.sql, then refresh this tab.';
   }
 
   return message;
+}
+
+function updateCommunityAuthorSnapshots(posts: CommunityPost[], nextUser: UserProfile) {
+  return posts.map((post) => ({
+    ...post,
+    authorName: post.userId === nextUser.id ? nextUser.name : post.authorName,
+    authorEmail: post.userId === nextUser.id ? nextUser.email : post.authorEmail,
+    authorAvatarUrl: post.userId === nextUser.id ? nextUser.avatarUrl : post.authorAvatarUrl,
+    comments: post.comments.map((comment) => ({
+      ...comment,
+      authorName: comment.userId === nextUser.id ? nextUser.name : comment.authorName,
+      authorEmail: comment.userId === nextUser.id ? nextUser.email : comment.authorEmail,
+      authorAvatarUrl: comment.userId === nextUser.id ? nextUser.avatarUrl : comment.authorAvatarUrl
+    }))
+  }));
+}
+
+function filterCommunityPosts(
+  posts: CommunityPost[],
+  section: CommunityFeedSection,
+  currentUserId: string,
+  friendIds: string[]
+) {
+  const friendIdSet = new Set(friendIds);
+
+  return posts.filter((post) => {
+    switch (section) {
+      case 'favorite-posts':
+        return post.status === 'open' && post.favoritedByCurrentUser;
+      case 'favorite-comments':
+        return post.status === 'open' && post.comments.some((comment) => comment.favoritedByCurrentUser);
+      case 'my-posts':
+        return post.status === 'open' && post.userId === currentUserId;
+      case 'friend-posts':
+        return post.status === 'open' && friendIdSet.has(post.userId);
+      case 'archived':
+        return post.status === 'open' && post.hiddenByCurrentUser;
+      case 'deleted':
+        return post.status === 'deleted' && post.userId === currentUserId;
+      default:
+        return post.status === 'open' && !post.hiddenByCurrentUser;
+    }
+  }).sort((left, right) => {
+    if (section !== 'archived' && section !== 'deleted' && left.pinnedByCurrentUser !== right.pinnedByCurrentUser) {
+      return left.pinnedByCurrentUser ? -1 : 1;
+    }
+
+    return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+  });
 }
 
 export default function App() {
@@ -125,6 +204,7 @@ export default function App() {
   const [forgotPasswordStatus, setForgotPasswordStatus] = useState<StatusMessage | null>(null);
   const [profileName, setProfileName] = useState('');
   const [profileEmail, setProfileEmail] = useState('');
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState('');
   const [profilePassword, setProfilePassword] = useState('');
   const [profileConfirmPassword, setProfileConfirmPassword] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
@@ -133,17 +213,35 @@ export default function App() {
   const [communityLoading, setCommunityLoading] = useState(false);
   const [communityLoadAttempted, setCommunityLoadAttempted] = useState(false);
   const [communityStatus, setCommunityStatus] = useState<StatusMessage | null>(null);
+  const [communitySection, setCommunitySection] = useState<CommunityFeedSection>('all');
   const [communityPostValues, setCommunityPostValues] = useState<CommunityPostFormValues>(emptyCommunityPostForm);
   const [communityPostErrors, setCommunityPostErrors] = useState<Partial<Record<keyof CommunityPostFormValues, string>>>({});
   const [communityPosting, setCommunityPosting] = useState(false);
   const [communityCommentDrafts, setCommunityCommentDrafts] = useState<Record<string, string>>({});
   const [communityCommentErrors, setCommunityCommentErrors] = useState<Record<string, string | undefined>>({});
+  const [communityCommentSorts, setCommunityCommentSorts] = useState<Record<string, CommunityCommentSort>>({});
   const [communityCommentLoadingId, setCommunityCommentLoadingId] = useState<string | null>(null);
-  const [communityWithdrawingId, setCommunityWithdrawingId] = useState<string | null>(null);
+  const [communityActionLoadingKey, setCommunityActionLoadingKey] = useState<string | null>(null);
+  const [friends, setFriends] = useState<FriendRecord[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friendsLoadAttempted, setFriendsLoadAttempted] = useState(false);
+  const [friendsStatus, setFriendsStatus] = useState<StatusMessage | null>(null);
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');
+  const [friendSearchResults, setFriendSearchResults] = useState<FriendSearchResult[]>([]);
+  const [friendSearchLoading, setFriendSearchLoading] = useState(false);
+  const [friendSearchStatus, setFriendSearchStatus] = useState<StatusMessage | null>(null);
+  const [selectedFriendProfile, setSelectedFriendProfile] = useState<FriendSearchResult | null>(null);
+  const [selectedFriendshipIds, setSelectedFriendshipIds] = useState<string[]>([]);
+  const [friendActionLoadingKey, setFriendActionLoadingKey] = useState<string | null>(null);
   const hydratedSessionKeyRef = useRef('');
   const sessionLoadRequestRef = useRef(0);
 
   const sortedAssignments = useMemo(() => sortAssignments(assignments), [assignments]);
+  const friendIds = useMemo(() => friends.map((friend) => friend.userId), [friends]);
+  const visibleCommunityPosts = useMemo(
+    () => filterCommunityPosts(communityPosts, communitySection, currentUser.id, friendIds),
+    [communityPosts, communitySection, currentUser.id, friendIds]
+  );
 
   function isRecoverableSessionError(error: unknown) {
     const message = getErrorMessage(error, '').toLowerCase();
@@ -175,6 +273,18 @@ export default function App() {
     window.setTimeout(() => {
       void hydrateUserSession(activeClient, userId, profile);
     }, 0);
+  }
+
+  function updateCommunityPost(postId: string, updater: (post: CommunityPost) => CommunityPost) {
+    setCommunityPosts((current) => current.map((post) => post.id === postId ? updater(post) : post));
+  }
+
+  function updateCommunityComment(postId: string, commentId: string, updater: (comment: CommunityComment) => CommunityComment) {
+    setCommunityPosts((current) => current.map((post) => (
+      post.id === postId
+        ? { ...post, comments: post.comments.map((comment) => comment.id === commentId ? updater(comment) : comment) }
+        : post
+    )));
   }
 
   useEffect(() => {
@@ -248,17 +358,34 @@ export default function App() {
     void loadCommunity();
   }, [activeView, client, currentUser.id, communityLoading, communityLoadAttempted]);
 
+  useEffect(() => {
+    if ((activeView !== 'community' && activeView !== 'friends') || !client || !currentUser.id || friendsLoading || friendsLoadAttempted) {
+      return;
+    }
+
+    void loadFriends();
+  }, [activeView, client, currentUser.id, friendsLoading, friendsLoadAttempted]);
+
   async function hydrateUserSession(activeClient: SupabaseClient, userId: string, profile: UserProfile) {
-    const sessionKey = `${userId}:${profile.email}:${profile.name}`;
+    const sessionKey = `${userId}:${profile.email}:${profile.name}:${profile.avatarUrl}`;
     if (hydratedSessionKeyRef.current === sessionKey) {
       return;
     }
 
     hydratedSessionKeyRef.current = sessionKey;
     const requestId = ++sessionLoadRequestRef.current;
-    setCurrentUser(profile);
-    setProfileName(profile.name);
-    setProfileEmail(profile.email);
+    let syncedProfile = profile;
+
+    try {
+      syncedProfile = await syncUserDirectoryProfile(activeClient, profile);
+    } catch {
+      // Keep the auth profile if the social tables are not ready yet.
+    }
+
+    setCurrentUser(syncedProfile);
+    setProfileName(syncedProfile.name);
+    setProfileEmail(syncedProfile.email);
+    setProfileAvatarUrl(syncedProfile.avatarUrl);
     setProfilePassword('');
     setProfileConfirmPassword('');
     setProfileStatus(null);
@@ -270,13 +397,26 @@ export default function App() {
     setCommunityLoading(false);
     setCommunityLoadAttempted(false);
     setCommunityStatus(null);
+    setCommunitySection('all');
     setCommunityPostValues(emptyCommunityPostForm);
     setCommunityPostErrors({});
     setCommunityPosting(false);
     setCommunityCommentDrafts({});
     setCommunityCommentErrors({});
+    setCommunityCommentSorts({});
     setCommunityCommentLoadingId(null);
-    setCommunityWithdrawingId(null);
+    setCommunityActionLoadingKey(null);
+    setFriends([]);
+    setFriendsLoading(false);
+    setFriendsLoadAttempted(false);
+    setFriendsStatus(null);
+    setFriendSearchQuery('');
+    setFriendSearchResults([]);
+    setFriendSearchLoading(false);
+    setFriendSearchStatus(null);
+    setSelectedFriendProfile(null);
+    setSelectedFriendshipIds([]);
+    setFriendActionLoadingKey(null);
 
     try {
       const allAssignments = await fetchAssignments(activeClient, userId);
@@ -329,6 +469,7 @@ export default function App() {
     setLogoutLoading(false);
     setProfileName('');
     setProfileEmail('');
+    setProfileAvatarUrl('');
     setProfilePassword('');
     setProfileConfirmPassword('');
     setProfileLoading(false);
@@ -337,13 +478,26 @@ export default function App() {
     setCommunityLoading(false);
     setCommunityLoadAttempted(false);
     setCommunityStatus(null);
+    setCommunitySection('all');
     setCommunityPostValues(emptyCommunityPostForm);
     setCommunityPostErrors({});
     setCommunityPosting(false);
     setCommunityCommentDrafts({});
     setCommunityCommentErrors({});
+    setCommunityCommentSorts({});
     setCommunityCommentLoadingId(null);
-    setCommunityWithdrawingId(null);
+    setCommunityActionLoadingKey(null);
+    setFriends([]);
+    setFriendsLoading(false);
+    setFriendsLoadAttempted(false);
+    setFriendsStatus(null);
+    setFriendSearchQuery('');
+    setFriendSearchResults([]);
+    setFriendSearchLoading(false);
+    setFriendSearchStatus(null);
+    setSelectedFriendProfile(null);
+    setSelectedFriendshipIds([]);
+    setFriendActionLoadingKey(null);
   }
 
   function validateLogin() {
@@ -388,7 +542,7 @@ export default function App() {
     setCommunityStatus(null);
 
     try {
-      const posts = await fetchCommunityPosts(client);
+      const posts = await fetchCommunityPosts(client, currentUser.id);
       setCommunityPosts(posts);
     } catch (error) {
       if (isRecoverableSessionError(error)) {
@@ -398,10 +552,35 @@ export default function App() {
 
       setCommunityStatus({
         tone: 'error',
-        text: formatCommunityError(error, 'Unable to load the community feed.')
+        text: formatSocialError(error, 'Unable to load the community feed.')
       });
     } finally {
       setCommunityLoading(false);
+    }
+  }
+
+  async function loadFriends(force = false) {
+    if (!client || !currentUser.id || friendsLoading || (!force && friendsLoadAttempted)) return;
+
+    setFriendsLoading(true);
+    setFriendsLoadAttempted(true);
+    setFriendsStatus(null);
+
+    try {
+      const nextFriends = await fetchFriends(client, currentUser.id);
+      setFriends(nextFriends);
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setFriendsStatus({
+        tone: 'error',
+        text: formatSocialError(error, 'Unable to load your friends yet.')
+      });
+    } finally {
+      setFriendsLoading(false);
     }
   }
 
@@ -416,8 +595,9 @@ export default function App() {
       setCommunityPosts((current) => [{ ...created, comments: [] }, ...current]);
       setCommunityPostValues(emptyCommunityPostForm);
       setCommunityPostErrors({});
+      setCommunitySection('all');
       setCommunityLoadAttempted(true);
-      setCommunityStatus({ tone: 'success', text: 'Your help request is live.' });
+      setCommunityStatus({ tone: 'success', text: 'Your post is now live in the community.' });
     } catch (error) {
       if (isRecoverableSessionError(error)) {
         await recoverBrokenSession();
@@ -426,7 +606,7 @@ export default function App() {
 
       setCommunityStatus({
         tone: 'error',
-        text: formatCommunityError(error, 'Unable to post your request.')
+        text: formatSocialError(error, 'Unable to post your request.')
       });
     } finally {
       setCommunityPosting(false);
@@ -435,6 +615,12 @@ export default function App() {
 
   async function handleCommunityComment(postId: string) {
     if (!client || !currentUser.id) return;
+
+    const targetPost = communityPosts.find((post) => post.id === postId);
+    if (!targetPost || targetPost.status !== 'open') {
+      setCommunityStatus({ tone: 'info', text: 'Comments are only available on open posts.' });
+      return;
+    }
 
     const draft = communityCommentDrafts[postId]?.trim() || '';
     if (!draft) {
@@ -448,9 +634,7 @@ export default function App() {
 
     try {
       const created = await insertCommunityComment(client, postId, draft, currentUser);
-      setCommunityPosts((current) => current.map((post) => (
-        post.id === postId ? { ...post, comments: [...post.comments, created] } : post
-      )));
+      updateCommunityPost(postId, (post) => ({ ...post, comments: [...post.comments, created] }));
       setCommunityCommentDrafts((current) => ({ ...current, [postId]: '' }));
     } catch (error) {
       if (isRecoverableSessionError(error)) {
@@ -460,23 +644,28 @@ export default function App() {
 
       setCommunityStatus({
         tone: 'error',
-        text: formatCommunityError(error, 'Unable to post your comment.')
+        text: formatSocialError(error, 'Unable to post your comment.')
       });
     } finally {
       setCommunityCommentLoadingId(null);
     }
   }
 
-  async function handleCommunityWithdraw(post: CommunityPost) {
+  async function handleCommunityDelete(post: CommunityPost) {
     if (!client || !currentUser.id) return;
 
-    setCommunityWithdrawingId(post.id);
+    const actionKey = `delete-post:${post.id}`;
+    setCommunityActionLoadingKey(actionKey);
     setCommunityStatus(null);
 
     try {
-      await withdrawCommunityPost(client, post.id, currentUser.id);
-      setCommunityPosts((current) => current.filter((item) => item.id !== post.id));
-      setCommunityStatus({ tone: 'success', text: 'Your request was withdrawn from the community feed.' });
+      await deleteCommunityPost(client, post.id, currentUser.id);
+      updateCommunityPost(post.id, (current) => ({
+        ...current,
+        status: 'deleted',
+        deletedAt: new Date().toISOString()
+      }));
+      setCommunityStatus({ tone: 'success', text: 'The post was moved to Deleted.' });
     } catch (error) {
       if (isRecoverableSessionError(error)) {
         await recoverBrokenSession();
@@ -485,10 +674,279 @@ export default function App() {
 
       setCommunityStatus({
         tone: 'error',
-        text: formatCommunityError(error, 'Unable to withdraw this request.')
+        text: formatSocialError(error, 'Unable to delete this post.')
       });
     } finally {
-      setCommunityWithdrawingId(null);
+      setCommunityActionLoadingKey(null);
+    }
+  }
+
+  async function handleCommunityPostHiddenToggle(post: CommunityPost) {
+    if (!client || !currentUser.id) return;
+
+    const actionKey = `hide-post:${post.id}`;
+    const nextHidden = !post.hiddenByCurrentUser;
+    setCommunityActionLoadingKey(actionKey);
+    setCommunityStatus(null);
+
+    try {
+      await setCommunityPostHidden(client, post.id, currentUser.id, nextHidden);
+      updateCommunityPost(post.id, (current) => ({ ...current, hiddenByCurrentUser: nextHidden }));
+      setCommunityStatus({ tone: 'success', text: nextHidden ? 'Post moved to Archived.' : 'Post restored to the main feed.' });
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setCommunityStatus({
+        tone: 'error',
+        text: formatSocialError(error, 'Unable to update this post right now.')
+      });
+    } finally {
+      setCommunityActionLoadingKey(null);
+    }
+  }
+
+  async function handleCommunityPostPinnedToggle(post: CommunityPost) {
+    if (!client || !currentUser.id) return;
+
+    const actionKey = `pin-post:${post.id}`;
+    const nextPinned = !post.pinnedByCurrentUser;
+    setCommunityActionLoadingKey(actionKey);
+    setCommunityStatus(null);
+
+    try {
+      await setCommunityPostPinned(client, post.id, currentUser.id, nextPinned);
+      updateCommunityPost(post.id, (current) => ({ ...current, pinnedByCurrentUser: nextPinned }));
+      setCommunityStatus({ tone: 'success', text: nextPinned ? 'Post pinned to the top of your feed.' : 'Post removed from your pinned posts.' });
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setCommunityStatus({
+        tone: 'error',
+        text: formatSocialError(error, 'Unable to update this pin right now.')
+      });
+    } finally {
+      setCommunityActionLoadingKey(null);
+    }
+  }
+
+  async function handleCommunityPostFavoriteToggle(post: CommunityPost) {
+    if (!client || !currentUser.id) return;
+
+    const actionKey = `favorite-post:${post.id}`;
+    const nextFavorite = !post.favoritedByCurrentUser;
+    setCommunityActionLoadingKey(actionKey);
+    setCommunityStatus(null);
+
+    try {
+      await setCommunityPostFavorite(client, post.id, currentUser.id, nextFavorite);
+      updateCommunityPost(post.id, (current) => ({ ...current, favoritedByCurrentUser: nextFavorite }));
+      setCommunityStatus({ tone: 'success', text: nextFavorite ? 'Post added to Favorite Posts.' : 'Post removed from Favorite Posts.' });
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setCommunityStatus({
+        tone: 'error',
+        text: formatSocialError(error, 'Unable to update favorites right now.')
+      });
+    } finally {
+      setCommunityActionLoadingKey(null);
+    }
+  }
+
+  async function handleCommunityPostLikeToggle(post: CommunityPost) {
+    if (!client || !currentUser.id) return;
+
+    const actionKey = `like-post:${post.id}`;
+    const nextLiked = !post.likedByCurrentUser;
+    setCommunityActionLoadingKey(actionKey);
+    setCommunityStatus(null);
+
+    try {
+      await setCommunityPostLike(client, post.id, currentUser.id, nextLiked);
+      updateCommunityPost(post.id, (current) => ({
+        ...current,
+        likedByCurrentUser: nextLiked,
+        likesCount: Math.max(0, current.likesCount + (nextLiked ? 1 : -1))
+      }));
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setCommunityStatus({
+        tone: 'error',
+        text: formatSocialError(error, 'Unable to update likes right now.')
+      });
+    } finally {
+      setCommunityActionLoadingKey(null);
+    }
+  }
+
+  async function handleCommunityCommentFavoriteToggle(postId: string, comment: CommunityComment) {
+    if (!client || !currentUser.id) return;
+
+    const actionKey = `favorite-comment:${comment.id}`;
+    const nextFavorite = !comment.favoritedByCurrentUser;
+    setCommunityActionLoadingKey(actionKey);
+    setCommunityStatus(null);
+
+    try {
+      await setCommunityCommentFavorite(client, comment.id, currentUser.id, nextFavorite);
+      updateCommunityComment(postId, comment.id, (current) => ({ ...current, favoritedByCurrentUser: nextFavorite }));
+      setCommunityStatus({ tone: 'success', text: nextFavorite ? 'Comment added to Favorite Comments.' : 'Comment removed from Favorite Comments.' });
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setCommunityStatus({
+        tone: 'error',
+        text: formatSocialError(error, 'Unable to update comment favorites right now.')
+      });
+    } finally {
+      setCommunityActionLoadingKey(null);
+    }
+  }
+
+  async function handleCommunityCommentLikeToggle(postId: string, comment: CommunityComment) {
+    if (!client || !currentUser.id) return;
+
+    const actionKey = `like-comment:${comment.id}`;
+    const nextLiked = !comment.likedByCurrentUser;
+    setCommunityActionLoadingKey(actionKey);
+    setCommunityStatus(null);
+
+    try {
+      await setCommunityCommentLike(client, comment.id, currentUser.id, nextLiked);
+      updateCommunityComment(postId, comment.id, (current) => ({
+        ...current,
+        likedByCurrentUser: nextLiked,
+        likesCount: Math.max(0, current.likesCount + (nextLiked ? 1 : -1))
+      }));
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setCommunityStatus({
+        tone: 'error',
+        text: formatSocialError(error, 'Unable to update comment likes right now.')
+      });
+    } finally {
+      setCommunityActionLoadingKey(null);
+    }
+  }
+
+  async function handleFriendSearch() {
+    if (!client || !currentUser.id) return;
+
+    if (friendSearchQuery.trim().length < 2) {
+      setFriendSearchStatus({ tone: 'info', text: 'Enter at least 2 characters to search by name or email.' });
+      setFriendSearchResults([]);
+      return;
+    }
+
+    setFriendSearchLoading(true);
+    setFriendSearchStatus(null);
+
+    try {
+      const results = await searchDirectoryProfiles(client, friendSearchQuery, currentUser.id, friendIds);
+      setFriendSearchResults(results);
+      setFriendSearchStatus({
+        tone: 'info',
+        text: results.length ? `Found ${results.length} matching profile${results.length === 1 ? '' : 's'}.` : 'No matching profiles found.'
+      });
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setFriendSearchStatus({
+        tone: 'error',
+        text: formatSocialError(error, 'Unable to search for friends right now.')
+      });
+    } finally {
+      setFriendSearchLoading(false);
+    }
+  }
+
+  async function handleAddFriend(profile: FriendSearchResult) {
+    if (!client || !currentUser.id) return;
+
+    const actionKey = `add-friend:${profile.userId}`;
+    setFriendActionLoadingKey(actionKey);
+    setFriendsStatus(null);
+
+    try {
+      await addFriend(client, currentUser.id, profile.userId);
+      await loadFriends(true);
+      setFriendSearchResults((current) => current.map((item) => (
+        item.userId === profile.userId ? { ...item, isAlreadyFriend: true } : item
+      )));
+      setSelectedFriendProfile((current) => current && current.userId === profile.userId
+        ? { ...current, isAlreadyFriend: true }
+        : current);
+      setFriendsStatus({ tone: 'success', text: `${profile.name} was added to your friends list.` });
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setFriendsStatus({
+        tone: 'error',
+        text: formatSocialError(error, 'Unable to add this friend right now.')
+      });
+    } finally {
+      setFriendActionLoadingKey(null);
+    }
+  }
+
+  async function handleRemoveFriends(friendshipIds: string[], label = 'Selected friends removed.') {
+    if (!client || !friendshipIds.length) return;
+
+    const actionKey = `remove-friends:${friendshipIds.join(',')}`;
+    setFriendActionLoadingKey(actionKey);
+    setFriendsStatus(null);
+
+    try {
+      await removeFriendships(client, friendshipIds);
+      const removedFriendIds = friends.filter((friend) => friendshipIds.includes(friend.friendshipId)).map((friend) => friend.userId);
+
+      setFriends((current) => current.filter((friend) => !friendshipIds.includes(friend.friendshipId)));
+      setSelectedFriendshipIds((current) => current.filter((id) => !friendshipIds.includes(id)));
+      setFriendSearchResults((current) => current.map((result) => (
+        removedFriendIds.includes(result.userId) ? { ...result, isAlreadyFriend: false } : result
+      )));
+      setSelectedFriendProfile((current) => current && removedFriendIds.includes(current.userId)
+        ? { ...current, isAlreadyFriend: false }
+        : current);
+      setFriendsStatus({ tone: 'success', text: label });
+    } catch (error) {
+      if (isRecoverableSessionError(error)) {
+        await recoverBrokenSession();
+        return;
+      }
+
+      setFriendsStatus({
+        tone: 'error',
+        text: formatSocialError(error, 'Unable to remove friends right now.')
+      });
+    } finally {
+      setFriendActionLoadingKey(null);
     }
   }
 
@@ -523,7 +981,7 @@ export default function App() {
         email: signupEmail.trim(),
         password: signupPassword.trim(),
         options: {
-          data: { full_name: signupName.trim() },
+          data: { full_name: signupName.trim(), avatar_url: '' },
           emailRedirectTo: siteUrl
         }
       });
@@ -571,11 +1029,12 @@ export default function App() {
 
     const trimmedName = profileName.trim();
     const trimmedEmail = profileEmail.trim();
+    const trimmedAvatarUrl = profileAvatarUrl.trim();
     const nextPassword = profilePassword.trim();
     const updates: {
       email?: string;
       password?: string;
-      data?: { full_name: string };
+      data?: { full_name: string; avatar_url: string | null };
     } = {};
 
     if (!trimmedName) {
@@ -598,7 +1057,9 @@ export default function App() {
       return;
     }
 
-    if (trimmedName !== currentUser.name) updates.data = { full_name: trimmedName };
+    if (trimmedName !== currentUser.name || trimmedAvatarUrl !== currentUser.avatarUrl) {
+      updates.data = { full_name: trimmedName, avatar_url: trimmedAvatarUrl || null };
+    }
     if (trimmedEmail !== currentUser.email) updates.email = trimmedEmail;
     if (nextPassword) updates.password = nextPassword;
 
@@ -614,11 +1075,24 @@ export default function App() {
       const { error } = await client.auth.updateUser(updates);
       if (error) throw error;
 
-      setCurrentUser((current) => ({
-        ...current,
-        name: updates.data?.full_name || current.name,
-        email: updates.email || current.email
-      }));
+      let nextUser: UserProfile = {
+        ...currentUser,
+        name: updates.data?.full_name || currentUser.name,
+        email: updates.email || currentUser.email,
+        avatarUrl: updates.data?.avatar_url || ''
+      };
+
+      try {
+        nextUser = await syncUserDirectoryProfile(client, nextUser);
+      } catch {
+        // Keep auth changes even if the directory table has not been set up yet.
+      }
+
+      setCurrentUser(nextUser);
+      setCommunityPosts((current) => updateCommunityAuthorSnapshots(current, nextUser));
+      setProfileName(nextUser.name);
+      setProfileEmail(nextUser.email);
+      setProfileAvatarUrl(nextUser.avatarUrl);
       setProfilePassword('');
       setProfileConfirmPassword('');
       setProfileStatus({
@@ -808,7 +1282,8 @@ export default function App() {
         return (
           <CommunityView
             currentUserId={currentUser.id}
-            posts={communityPosts}
+            posts={visibleCommunityPosts}
+            activeSection={communitySection}
             loading={communityLoading}
             status={communityStatus}
             postValues={communityPostValues}
@@ -816,8 +1291,11 @@ export default function App() {
             posting={communityPosting}
             commentDrafts={communityCommentDrafts}
             commentErrors={communityCommentErrors}
+            commentSorts={communityCommentSorts}
             commentLoadingId={communityCommentLoadingId}
-            withdrawingId={communityWithdrawingId}
+            actionLoadingKey={communityActionLoadingKey}
+            onSectionChange={setCommunitySection}
+            onCommentSortChange={(postId, sort) => setCommunityCommentSorts((current) => ({ ...current, [postId]: sort }))}
             onPostChange={(field, value) => {
               setCommunityPostValues((current) => ({ ...current, [field]: value }));
               setCommunityPostErrors((current) => ({ ...current, [field]: undefined }));
@@ -828,8 +1306,41 @@ export default function App() {
               setCommunityCommentErrors((current) => ({ ...current, [postId]: undefined }));
             }}
             onCommentSubmit={(postId) => void handleCommunityComment(postId)}
-            onWithdraw={(post) => void handleCommunityWithdraw(post)}
+            onDeletePost={(post) => void handleCommunityDelete(post)}
+            onToggleHidePost={(post) => void handleCommunityPostHiddenToggle(post)}
+            onTogglePinPost={(post) => void handleCommunityPostPinnedToggle(post)}
+            onToggleFavoritePost={(post) => void handleCommunityPostFavoriteToggle(post)}
+            onToggleLikePost={(post) => void handleCommunityPostLikeToggle(post)}
+            onToggleFavoriteComment={(postId, comment) => void handleCommunityCommentFavoriteToggle(postId, comment)}
+            onToggleLikeComment={(postId, comment) => void handleCommunityCommentLikeToggle(postId, comment)}
             onRefresh={() => void loadCommunity(true)}
+          />
+        );
+      case 'friends':
+        return (
+          <FriendsView
+            friends={friends}
+            loading={friendsLoading}
+            status={friendsStatus}
+            searchQuery={friendSearchQuery}
+            searchResults={friendSearchResults}
+            searchLoading={friendSearchLoading}
+            searchStatus={friendSearchStatus}
+            selectedFriendshipIds={selectedFriendshipIds}
+            activeProfile={selectedFriendProfile}
+            actionLoadingKey={friendActionLoadingKey}
+            onSearchQueryChange={setFriendSearchQuery}
+            onSearch={() => void handleFriendSearch()}
+            onSelectSearchResult={setSelectedFriendProfile}
+            onCloseProfile={() => setSelectedFriendProfile(null)}
+            onAddFriend={(profile) => void handleAddFriend(profile)}
+            onToggleFriendSelection={(friendshipId, checked) => {
+              setSelectedFriendshipIds((current) => checked
+                ? [...current, friendshipId]
+                : current.filter((id) => id !== friendshipId));
+            }}
+            onRemoveFriend={(friend) => void handleRemoveFriends([friend.friendshipId], `${friend.name} removed from your friends list.`)}
+            onRemoveSelectedFriends={() => void handleRemoveFriends(selectedFriendshipIds)}
           />
         );
       case 'finished':
@@ -848,12 +1359,14 @@ export default function App() {
             finishedCount={finished.length}
             profileName={profileName}
             profileEmail={profileEmail}
+            profileAvatarUrl={profileAvatarUrl}
             profilePassword={profilePassword}
             profileConfirmPassword={profileConfirmPassword}
             loading={profileLoading}
             status={profileStatus}
             onNameChange={setProfileName}
             onEmailChange={setProfileEmail}
+            onAvatarUrlChange={setProfileAvatarUrl}
             onPasswordChange={setProfilePassword}
             onConfirmPasswordChange={setProfileConfirmPassword}
             onSubmit={() => void handleProfileSave()}

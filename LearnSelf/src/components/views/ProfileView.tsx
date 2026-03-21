@@ -1,3 +1,4 @@
+import { UserAvatar } from '../common/UserAvatar';
 import type { StatusMessage, UserProfile } from '../../types';
 
 interface ProfileViewProps {
@@ -6,12 +7,14 @@ interface ProfileViewProps {
   finishedCount: number;
   profileName: string;
   profileEmail: string;
+  profileAvatarUrl: string;
   profilePassword: string;
   profileConfirmPassword: string;
   loading: boolean;
   status?: StatusMessage | null;
   onNameChange: (value: string) => void;
   onEmailChange: (value: string) => void;
+  onAvatarUrlChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onConfirmPasswordChange: (value: string) => void;
   onSubmit: () => void;
@@ -23,22 +26,22 @@ export function ProfileView({
   finishedCount,
   profileName,
   profileEmail,
+  profileAvatarUrl,
   profilePassword,
   profileConfirmPassword,
   loading,
   status,
   onNameChange,
   onEmailChange,
+  onAvatarUrlChange,
   onPasswordChange,
   onConfirmPasswordChange,
   onSubmit
 }: ProfileViewProps) {
-  const avatar = currentUser.name[0]?.toUpperCase() || 'S';
-
   return (
     <div className="view active">
       <div className="simple-view-card profile-card">
-        <div className="profile-avatar-big">{avatar}</div>
+        <UserAvatar name={currentUser.name} avatarUrl={currentUser.avatarUrl} className="profile-avatar-big" />
         <div className="view-title">{currentUser.name}</div>
         <div className="view-sub">{currentUser.email || 'No email'}</div>
         <div className="profile-stats">
@@ -54,7 +57,7 @@ export function ProfileView({
 
         <div className="profile-edit-section">
           <div className="view-title profile-edit-title">Account Settings</div>
-          <div className="view-sub profile-edit-sub">Update your name, email, and password here.</div>
+          <div className="view-sub profile-edit-sub">Update your name, email, profile picture, and password here.</div>
 
           <div className="modal-field">
             <label className="modal-label" htmlFor="profile-name">Display Name</label>
@@ -64,6 +67,11 @@ export function ProfileView({
           <div className="modal-field">
             <label className="modal-label" htmlFor="profile-email">Email</label>
             <input className="modal-input" id="profile-email" type="email" value={profileEmail} onChange={(event) => onEmailChange(event.target.value)} />
+          </div>
+
+          <div className="modal-field">
+            <label className="modal-label" htmlFor="profile-avatar-url">Profile Picture URL</label>
+            <input className="modal-input" id="profile-avatar-url" type="url" placeholder="https://example.com/avatar.png" value={profileAvatarUrl} onChange={(event) => onAvatarUrlChange(event.target.value)} />
           </div>
 
           <div className="modal-row">

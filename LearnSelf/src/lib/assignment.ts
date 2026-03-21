@@ -2,7 +2,7 @@ import { DEFAULT_USER_NAME, DIFFICULTY_CLASS_MAP } from '../constants';
 import type { Assignment, Difficulty, UserProfile } from '../types';
 
 export function getInitialUser(): UserProfile {
-  return { id: '', email: '', name: DEFAULT_USER_NAME };
+  return { id: '', email: '', name: DEFAULT_USER_NAME, avatarUrl: '' };
 }
 
 export function calcPriority(assignment: Pick<Assignment, 'due' | 'difficulty'>) {

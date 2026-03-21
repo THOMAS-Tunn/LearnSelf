@@ -1,13 +1,16 @@
-export type ViewName = 'dashboard' | 'community' | 'finished' | 'trash' | 'tools' | 'help' | 'profile' | 'settings';
+export type ViewName = 'dashboard' | 'community' | 'friends' | 'finished' | 'trash' | 'tools' | 'help' | 'profile' | 'settings';
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'Group';
 export type AssignmentStatus = 'active' | 'finished' | 'trashed';
-export type CommunityPostStatus = 'open' | 'withdrawn';
+export type CommunityPostStatus = 'open' | 'deleted';
+export type CommunityFeedSection = 'all' | 'favorite-posts' | 'favorite-comments' | 'my-posts' | 'friend-posts' | 'archived' | 'deleted';
+export type CommunityCommentSort = 'oldest' | 'newest' | 'most-liked';
 
 export interface UserProfile {
   id: string;
   email: string;
   name: string;
+  avatarUrl: string;
 }
 
 export interface Assignment {
@@ -36,8 +39,12 @@ export interface CommunityComment {
   userId: string;
   authorName: string;
   authorEmail: string;
+  authorAvatarUrl: string;
   body: string;
   createdAt: string;
+  likesCount: number;
+  likedByCurrentUser: boolean;
+  favoritedByCurrentUser: boolean;
 }
 
 export interface CommunityPost {
@@ -45,17 +52,41 @@ export interface CommunityPost {
   userId: string;
   authorName: string;
   authorEmail: string;
+  authorAvatarUrl: string;
   title: string;
   body: string;
   status: CommunityPostStatus;
   createdAt: string;
-  withdrawnAt: string;
+  updatedAt: string;
+  deletedAt: string;
+  likesCount: number;
+  likedByCurrentUser: boolean;
+  favoritedByCurrentUser: boolean;
+  pinnedByCurrentUser: boolean;
+  hiddenByCurrentUser: boolean;
   comments: CommunityComment[];
 }
 
 export interface CommunityPostFormValues {
   title: string;
   body: string;
+}
+
+export interface DirectoryProfile {
+  userId: string;
+  name: string;
+  email: string;
+  avatarUrl: string;
+}
+
+export interface FriendRecord extends DirectoryProfile {
+  friendshipId: string;
+  createdAt: string;
+}
+
+export interface FriendSearchResult extends DirectoryProfile {
+  isAlreadyFriend: boolean;
+  isCurrentUser: boolean;
 }
 
 export interface StatusMessage {

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { NAV_ITEMS } from '../../constants';
+import { UserAvatar } from '../common/UserAvatar';
 import type { StatusMessage, UserProfile, ViewName } from '../../types';
 
 interface AppShellProps {
@@ -11,8 +12,6 @@ interface AppShellProps {
 }
 
 export function AppShell({ currentView, currentUser, status, onViewChange, children }: AppShellProps) {
-  const avatar = currentUser.name[0]?.toUpperCase() || 'S';
-
   return (
     <div id="app-page">
       <header>
@@ -27,7 +26,7 @@ export function AppShell({ currentView, currentUser, status, onViewChange, child
         <div className="header-right">
           <button className={`nav-btn ${currentView === 'profile' ? 'active' : ''}`} type="button" onClick={() => onViewChange('profile')}>Profile</button>
           <button className={`nav-btn ${currentView === 'settings' ? 'active' : ''}`} type="button" onClick={() => onViewChange('settings')}>Settings</button>
-          <div className="header-avatar">{avatar}</div>
+          <UserAvatar name={currentUser.name} avatarUrl={currentUser.avatarUrl} className="header-avatar" />
         </div>
       </header>
       {status?.text ? <div className={`status-banner ${status.tone} show`}>{status.text}</div> : null}

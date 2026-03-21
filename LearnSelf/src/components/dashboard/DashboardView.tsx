@@ -23,7 +23,9 @@ export function DashboardView(props: DashboardViewProps) {
           <button className="action-pill finish" type="button" onClick={props.onBulkFinish}>Mark Finished</button>
           <button className="action-pill del" type="button" onClick={props.onBulkDelete}>Delete</button>
         </div>
-        <button className="add-btn" type="button" title="Add assignment" onClick={props.onOpenAddModal}>+</button>
+        <button className="add-btn" type="button" title="Add assignment" aria-label="Add assignment" onClick={props.onOpenAddModal}>
+          <span className="add-btn-glyph" aria-hidden="true">+</span>
+        </button>
       </div>
 
       <div className="table-wrap">

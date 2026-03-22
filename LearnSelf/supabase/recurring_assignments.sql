@@ -17,6 +17,9 @@ alter table public.assignments
   add column if not exists repeat_timezone text,
   add column if not exists repeat_rule_id uuid;
 
+alter table public.assignments
+  alter column due_date drop not null;
+
 create unique index if not exists assignments_repeat_rule_due_idx
   on public.assignments (repeat_rule_id, due_date);
 

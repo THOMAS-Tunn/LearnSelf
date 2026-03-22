@@ -595,7 +595,7 @@ export default function App() {
       ...current,
       [field]: undefined,
       ...(field === 'repeatEnabled' || field === 'repeatEvery'
-        ? { repeatEvery: undefined, repeatTime: undefined, repeatDaysOfWeek: undefined, repeatDaysOfMonth: undefined }
+        ? { repeatEvery: undefined, repeatTime: undefined, repeatDaysOfWeek: undefined, repeatDaysOfMonth: undefined, due: undefined }
         : {}),
       ...(field === 'ad' || field === 'due'
         ? { due: undefined, repeatDaysOfWeek: undefined, repeatDaysOfMonth: undefined }
@@ -624,7 +624,13 @@ export default function App() {
     const nextErrors: typeof addFormErrors = {};
     if (!addForm.name.trim()) nextErrors.name = 'Name is required.';
     if (!addForm.difficulty) nextErrors.difficulty = 'Difficulty is required.';
-    if (!addForm.due) nextErrors.due = 'Due date is required.';
+    if (!addForm.repeatEnabled && !addForm.due) {
+      nextErrors.due = 'Due date is required.';
+    }
+
+    if (addForm.repeatEnabled && !addForm.ad && !addForm.due) {
+      nextErrors.due = 'Set either an assign date or a due date to anchor the repeat schedule.';
+    }
 
     const assignedDate = addForm.ad ? new Date(`${addForm.ad}T00:00:00`) : null;
     const dueDate = addForm.due ? new Date(`${addForm.due}T00:00:00`) : null;

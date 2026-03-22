@@ -149,13 +149,7 @@ export function buildAssignmentPayload(assignment: Assignment, userId: string) {
     status: assignment.status
   };
 
-  if (
-    assignment.repeatEnabled
-    || assignment.repeatRuleId
-    || assignment.repeatEvery
-    || assignment.repeatTime
-    || assignment.repeatTimezone
-  ) {
+  if (assignment.repeatEnabled || assignment.repeatRuleId) {
     payload.repeat_enabled = assignment.repeatEnabled;
     payload.repeat_every = assignment.repeatEvery || null;
     payload.repeat_time = assignment.repeatTime || null;

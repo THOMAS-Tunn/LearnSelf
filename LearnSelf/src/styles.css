@@ -317,6 +317,10 @@ img {
     color var(--t-slow);
 }
 
+.modal-input-time {
+  min-width: 0;
+}
+
 .field-input:focus,
 .modal-input:focus,
 .modal-select:focus,
@@ -377,6 +381,13 @@ img {
 
 [data-theme="dark"] .field-error {
   color: #e06b6b;
+}
+
+.modal-hint {
+  margin-top: 6px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--ink-muted);
 }
 
 @keyframes errorShake {
@@ -2951,6 +2962,7 @@ tbody tr:nth-child(n + 8) {
   }
 
   .modal-row { grid-template-columns: 1fr; }
+  .modal-input-time { max-width: 100%; }
   .priority-mode-panel { flex-direction: column; align-items: stretch; }
   .priority-mode-select { width: 100%; }
   .repeat-chip-grid,

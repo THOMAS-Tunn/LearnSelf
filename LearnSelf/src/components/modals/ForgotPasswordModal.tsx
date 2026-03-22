@@ -12,13 +12,23 @@ interface ForgotPasswordModalProps {
   onSubmit: () => void;
 }
 
+function CloseIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function ForgotPasswordModal(props: ForgotPasswordModalProps) {
   if (!props.open) return null;
 
   return (
     <div className="fp-overlay show" onClick={(event) => event.target === event.currentTarget && props.onClose()}>
       <div className="fp-modal">
-        <button className="fp-close" type="button" onClick={props.onClose}>x</button>
+        <button className="fp-close" type="button" onClick={props.onClose} aria-label="Close">
+          <CloseIcon />
+        </button>
         <div className="fp-title">Reset Password</div>
         <div className="fp-sub">Enter your email and we will send you a reset link.</div>
         <div className="field-wrap modal-tight">

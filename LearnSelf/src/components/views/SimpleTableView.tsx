@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { abbreviateClass, formatDate, getDifficultyClassName } from '../../lib/assignment';
+import { abbreviateClass, formatDate, getDifficultyClassName, isPastDueDate } from '../../lib/assignment';
 import type { Assignment } from '../../types';
 
 interface SimpleTableViewProps {
@@ -95,33 +95,37 @@ export function SimpleTableView(props: SimpleTableViewProps) {
               </tr>
             </thead>
             <tbody>
-              {props.assignments.map((assignment) => (
-                <tr
-                  key={assignment.id}
-                  className={deletingIds.has(assignment.id) ? 'row-anim-delete' : ''}
-                >
-                  {canDelete ? (
-                    <td>
-                      <input
-                        type="checkbox"
-                        className="cb"
-                        checked={props.selectedIds?.includes(assignment.id) || false}
-                        onChange={(event) => props.onToggleSelected?.(assignment.id, event.target.checked)}
-                      />
-                    </td>
-                  ) : null}
-                  <td>{abbreviateClass(assignment.cls)}</td>
-                  <td>{assignment.name}</td>
-                  <td>{formatDate(assignment.due)}</td>
-                  {props.showDifficulty ? (
-                    <td>
-                      <span className={`diff-badge ${getDifficultyClassName(assignment.difficulty)}`}>
-                        {assignment.difficulty}
-                      </span>
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
+              {props.assignments.map((assignment) => {
+                const isPastDue = isPastDueDate(assignment.due);
+
+                return (
+                  <tr
+                    key={assignment.id}
+                    className={deletingIds.has(assignment.id) ? 'row-anim-delete' : ''}
+                  >
+                    {canDelete ? (
+                      <td>
+                        <input
+                          type="checkbox"
+                          className="cb"
+                          checked={props.selectedIds?.includes(assignment.id) || false}
+                          onChange={(event) => props.onToggleSelected?.(assignment.id, event.target.checked)}
+                        />
+                      </td>
+                    ) : null}
+                    <td>{abbreviateClass(assignment.cls)}</td>
+                    <td>{assignment.name}</td>
+                    <td className={`due-cell ${isPastDue ? 'is-overdue' : ''}`}>{formatDate(assignment.due)}</td>
+                    {props.showDifficulty ? (
+                      <td>
+                        <span className={`diff-badge ${getDifficultyClassName(assignment.difficulty)}`}>
+                          {assignment.difficulty}
+                        </span>
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {!props.assignments.length ? (

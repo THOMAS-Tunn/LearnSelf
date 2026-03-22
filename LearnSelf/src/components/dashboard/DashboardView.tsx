@@ -3,7 +3,8 @@ import {
   abbreviateClass,
   calcPriority,
   formatDate,
-  getDifficultyClassName
+  getDifficultyClassName,
+  isPastDueDate
 } from '../../lib/assignment';
 import { InfoTip } from '../common/InfoTip';
 import type { Assignment } from '../../types';
@@ -42,6 +43,14 @@ function CheckIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+      <path d="M9 3.5V14.5M3.5 9H14.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
     </svg>
   );
 }
@@ -121,7 +130,7 @@ export function DashboardView(props: DashboardViewProps) {
           onClick={props.onOpenAddModal}
         >
           <span className="add-btn-glyph" aria-hidden="true">
-            +
+            <PlusIcon />
           </span>
         </button>
       </div>
@@ -159,6 +168,7 @@ export function DashboardView(props: DashboardViewProps) {
           <tbody>
             {props.assignments.map((assignment) => {
               const priority = calcPriority(assignment);
+              const isPastDue = isPastDueDate(assignment.due);
               const isFinishing = finishingIds.has(assignment.id);
               const isDeleting = deletingIds.has(assignment.id);
 
@@ -190,7 +200,7 @@ export function DashboardView(props: DashboardViewProps) {
                     {assignment.desc || '-'}
                   </td>
                   <td>{formatDate(assignment.ad)}</td>
-                  <td className="due-cell">{formatDate(assignment.due)}</td>
+                  <td className={`due-cell ${isPastDue ? 'is-overdue' : ''}`}>{formatDate(assignment.due)}</td>
                   <td>
                     <span className={`diff-badge ${getDifficultyClassName(assignment.difficulty)}`}>
                       {assignment.difficulty}

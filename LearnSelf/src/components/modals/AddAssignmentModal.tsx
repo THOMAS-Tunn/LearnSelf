@@ -12,6 +12,14 @@ interface AddAssignmentModalProps {
   onSubmit: () => void;
 }
 
+function CloseIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function AddAssignmentModal(props: AddAssignmentModalProps) {
   if (!props.open) return null;
 
@@ -20,7 +28,9 @@ export function AddAssignmentModal(props: AddAssignmentModalProps) {
       <div className="modal">
         <div className="modal-head">
           <div className="modal-title">New Assignment</div>
-          <button className="modal-close" type="button" onClick={props.onClose}>x</button>
+          <button className="modal-close" type="button" onClick={props.onClose} aria-label="Close">
+            <CloseIcon />
+          </button>
         </div>
 
         <div className="modal-field">

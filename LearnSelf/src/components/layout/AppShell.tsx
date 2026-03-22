@@ -19,24 +19,24 @@ function MenuIcon({ open }: { open: boolean }) {
       viewBox="0 0 18 18"
       fill="none"
       aria-hidden="true"
-      className={`menu-icon ${open ? 'menu-icon--open' : ''}`}
+      className="menu-icon-svg"
     >
       <path
-        className="menu-bar menu-bar--top"
+        className={`menu-bar menu-bar--top ${open ? 'menu-bar--open-top' : ''}`}
         d="M3 4.5H15"
         stroke="currentColor"
         strokeWidth="1.6"
         strokeLinecap="round"
       />
       <path
-        className="menu-bar menu-bar--mid"
+        className={`menu-bar menu-bar--mid ${open ? 'menu-bar--open-mid' : ''}`}
         d="M3 9H15"
         stroke="currentColor"
         strokeWidth="1.6"
         strokeLinecap="round"
       />
       <path
-        className="menu-bar menu-bar--bot"
+        className={`menu-bar menu-bar--bot ${open ? 'menu-bar--open-bot' : ''}`}
         d="M3 13.5H15"
         stroke="currentColor"
         strokeWidth="1.6"
@@ -123,7 +123,6 @@ export function AppShell({ currentView, currentUser, status, onViewChange, child
 
     document.addEventListener('mousedown', handleOutside);
     document.addEventListener('touchstart', handleOutside, { passive: true });
-
     return () => {
       document.removeEventListener('mousedown', handleOutside);
       document.removeEventListener('touchstart', handleOutside);
@@ -163,7 +162,6 @@ export function AppShell({ currentView, currentUser, status, onViewChange, child
       closeMenu();
       return;
     }
-
     openMenu();
   }
 
@@ -306,7 +304,9 @@ export function AppShell({ currentView, currentUser, status, onViewChange, child
         </div>
       </div>
 
-      {status?.text ? <div className={`status-banner ${status.tone} show`}>{status.text}</div> : null}
+      {status?.text ? (
+        <div className={`status-banner ${status.tone} show`}>{status.text}</div>
+      ) : null}
       {children}
     </div>
   );

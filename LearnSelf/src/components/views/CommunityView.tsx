@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { COMMUNITY_COMMENT_SORT_OPTIONS, COMMUNITY_SECTIONS } from '../../constants';
 import {
   canDeleteCommunityPost,
@@ -63,56 +63,84 @@ function sortComments(comments: CommunityComment[], sort: CommunityCommentSort) 
   });
 }
 
-function ThumbUpIcon() {
+function ThumbUpIcon({ filled }: { filled?: boolean }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M6.5 7L8.2 3.6C8.5 3 9.2 2.8 9.8 3C10.4 3.2 10.8 3.8 10.7 4.4L10.2 7H12.4C13.5 7 14.3 8 14 9L13.2 12.3C13 13.1 12.3 13.7 11.5 13.7H6.5"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M2.3 7H5.4V13.7H2.3C1.9 13.7 1.5 13.4 1.5 12.9V7.8C1.5 7.4 1.9 7 2.3 7Z"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      {filled ? (
+        <path
+          d="M6.5 7L8.2 3.6C8.5 3 9.2 2.8 9.8 3C10.4 3.2 10.8 3.8 10.7 4.4L10.2 7H12.4C13.5 7 14.3 8 14 9L13.2 12.3C13 13.1 12.3 13.7 11.5 13.7H6.5V7ZM2.3 7H5.4V13.7H2.3C1.9 13.7 1.5 13.4 1.5 12.9V7.8C1.5 7.4 1.9 7 2.3 7Z"
+          fill="currentColor"
+        />
+      ) : (
+        <>
+          <path
+            d="M6.5 7L8.2 3.6C8.5 3 9.2 2.8 9.8 3C10.4 3.2 10.8 3.8 10.7 4.4L10.2 7H12.4C13.5 7 14.3 8 14 9L13.2 12.3C13 13.1 12.3 13.7 11.5 13.7H6.5"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M2.3 7H5.4V13.7H2.3C1.9 13.7 1.5 13.4 1.5 12.9V7.8C1.5 7.4 1.9 7 2.3 7Z"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinejoin="round"
+          />
+        </>
+      )}
     </svg>
   );
 }
 
-function StarIcon() {
+function StarIcon({ filled }: { filled?: boolean }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M8 2.1L9.6 5.4L13.3 5.9L10.6 8.4L11.2 12L8 10.3L4.8 12L5.4 8.4L2.7 5.9L6.4 5.4L8 2.1Z"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      {filled ? (
+        <path
+          d="M8 2.1L9.6 5.4L13.3 5.9L10.6 8.4L11.2 12L8 10.3L4.8 12L5.4 8.4L2.7 5.9L6.4 5.4L8 2.1Z"
+          fill="currentColor"
+        />
+      ) : (
+        <path
+          d="M8 2.1L9.6 5.4L13.3 5.9L10.6 8.4L11.2 12L8 10.3L4.8 12L5.4 8.4L2.7 5.9L6.4 5.4L8 2.1Z"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinejoin="round"
+        />
+      )}
     </svg>
   );
 }
 
-function PinIcon() {
+function PinIcon({ filled }: { filled?: boolean }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M10.8 2.6L13.4 5.2L11.6 6.1L9.9 9.1L6.9 10.8L6 12.6L3.4 10L5.2 9.1L6.9 6.1L9.9 4.4L10.8 2.6Z"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
-      <path d="M6 12.6L4.1 14.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      {filled ? (
+        <>
+          <path
+            d="M10.8 2.6L13.4 5.2L11.6 6.1L9.9 9.1L6.9 10.8L6 12.6L3.4 10L5.2 9.1L6.9 6.1L9.9 4.4L10.8 2.6Z"
+            fill="currentColor"
+          />
+          <path d="M6 12.6L4.1 14.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        </>
+      ) : (
+        <>
+          <path
+            d="M10.8 2.6L13.4 5.2L11.6 6.1L9.9 9.1L6.9 10.8L6 12.6L3.4 10L5.2 9.1L6.9 6.1L9.9 4.4L10.8 2.6Z"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinejoin="round"
+          />
+          <path d="M6 12.6L4.1 14.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        </>
+      )}
     </svg>
   );
 }
 
 function ArchiveIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <rect x="2" y="3" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.4" />
       <path
         d="M3.4 6.1V11.9C3.4 12.7 4 13.3 4.8 13.3H11.2C12 13.3 12.6 12.7 12.6 11.9V6.1"
@@ -126,7 +154,7 @@ function ArchiveIcon() {
 
 function TrashIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M3.5 4.2H12.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
       <path d="M6.2 2.8H9.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
       <path
@@ -143,17 +171,17 @@ function TrashIcon() {
 
 function RefreshIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+    <svg width="14" height="14" viewBox="0 0 15 15" fill="none" aria-hidden="true">
       <path
         d="M13 7.5C13 10.5 10.5 13 7.5 13C4.5 13 2 10.5 2 7.5C2 4.5 4.5 2 7.5 2C9.2 2 10.7 2.8 11.7 4"
         stroke="currentColor"
-        strokeWidth="1.4"
+        strokeWidth="1.5"
         strokeLinecap="round"
       />
       <path
         d="M11.5 2L13.5 4L11.5 4"
         stroke="currentColor"
-        strokeWidth="1.4"
+        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -161,12 +189,43 @@ function RefreshIcon() {
   );
 }
 
-function MenuItemLabel({ icon, label }: { icon: ReactNode; label: string }) {
+function DotsIcon() {
   return (
-    <span className="community-menu-item-label">
-      <span className="community-menu-item-icon">{icon}</span>
-      <span>{label}</span>
-    </span>
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="3.5" r="1.2" fill="currentColor" />
+      <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+      <circle cx="8" cy="12.5" r="1.2" fill="currentColor" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M10 4V16M4 10H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M13.5 2.5L7 9M13.5 2.5L9 13.5L7 9M13.5 2.5L2.5 6.5L7 9"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -186,12 +245,10 @@ function LikeButton({
   const [burst, setBurst] = useState(false);
   const timeoutRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-      }
-    };
+  useEffect(() => () => {
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+    }
   }, []);
 
   function handleClick() {
@@ -210,24 +267,67 @@ function LikeButton({
   }
 
   return (
-    <div className="community-action-group">
+    <span className="community-action-group">
       <button
-        className={`community-action-btn community-action-btn-icon ${liked ? 'is-active' : ''} ${
-          burst ? 'like-burst' : ''
-        }`}
+        className={`community-icon-btn ${liked ? 'is-liked' : ''} ${burst ? 'like-burst' : ''}`}
         type="button"
         aria-label={ariaLabel}
         onClick={handleClick}
         disabled={loading}
       >
-        <ThumbUpIcon />
+        <ThumbUpIcon filled={liked} />
       </button>
-      <span className="community-action-count">{count}</span>
-    </div>
+      {count > 0 && <span className="community-action-count">{count}</span>}
+    </span>
   );
 }
 
-function MobileComposeDrawer({
+function FavoriteButton({
+  favorited,
+  loading,
+  onToggle,
+  ariaLabel
+}: {
+  favorited: boolean;
+  loading: boolean;
+  onToggle: () => void;
+  ariaLabel: string;
+}) {
+  const [pop, setPop] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+    }
+  }, []);
+
+  function handleClick() {
+    setPop(true);
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = window.setTimeout(() => {
+      setPop(false);
+      timeoutRef.current = null;
+    }, 400);
+    onToggle();
+  }
+
+  return (
+    <button
+      className={`community-icon-btn ${favorited ? 'is-starred' : ''} ${pop ? 'star-pop' : ''}`}
+      type="button"
+      aria-label={ariaLabel}
+      onClick={handleClick}
+      disabled={loading}
+    >
+      <StarIcon filled={favorited} />
+    </button>
+  );
+}
+
+function ComposeDrawer({
   open,
   onClose,
   postValues,
@@ -235,9 +335,7 @@ function MobileComposeDrawer({
   posting,
   status,
   onPostChange,
-  onPostSubmit,
-  onRefresh,
-  loading
+  onPostSubmit
 }: {
   open: boolean;
   onClose: () => void;
@@ -247,9 +345,10 @@ function MobileComposeDrawer({
   status: StatusMessage | null;
   onPostChange: (field: keyof CommunityPostFormValues, value: string) => void;
   onPostSubmit: () => void;
-  onRefresh: () => void;
-  loading: boolean;
 }) {
+  const titleLen = postValues.title.length;
+  const bodyLen = postValues.body.length;
+
   return (
     <>
       <div
@@ -257,69 +356,78 @@ function MobileComposeDrawer({
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className={`compose-drawer ${open ? 'compose-drawer--in' : 'compose-drawer--out'}`}>
+      <div
+        className={`compose-drawer ${open ? 'compose-drawer--in' : 'compose-drawer--out'}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create post"
+      >
         <div className="compose-drawer-handle" />
+
         <div className="compose-drawer-head">
-          <div className="view-title" style={{ fontSize: '18px', marginBottom: 0 }}>
-            Create Post
+          <div className="compose-drawer-heading">
+            <PlusIcon />
+            <span>New Post</span>
           </div>
-          <button className="modal-close" type="button" onClick={onClose} aria-label="Close create post drawer">
-            x
+          <button className="cd-close-btn" type="button" onClick={onClose} aria-label="Close">
+            <CloseIcon />
           </button>
         </div>
-        {status?.text ? <div className={`status-banner ${status.tone}`}>{status.text}</div> : null}
-        <div className="community-form">
-          <div className="modal-field">
-            <label className="modal-label" htmlFor="m-community-title">
-              Post title
-            </label>
+
+        {status?.text ? (
+          <div className={`status-banner ${status.tone}`} style={{ marginBottom: 16 }}>
+            {status.text}
+          </div>
+        ) : null}
+
+        <div className="compose-form">
+          <div className="compose-field">
+            <div className="compose-label-row">
+              <label className="modal-label" htmlFor="m-community-title">Title</label>
+              <span className={`compose-char-count ${titleLen > 110 ? 'warn' : ''}`}>
+                {titleLen}/120
+              </span>
+            </div>
             <input
               id="m-community-title"
               className="modal-input"
               type="text"
               maxLength={120}
-              placeholder="Need help with algebra homework"
+              placeholder="What do you need help with?"
               value={postValues.title}
               onChange={(event) => onPostChange('title', event.target.value)}
             />
             {postErrors.title ? <div className="field-error">{postErrors.title}</div> : null}
           </div>
-          <div className="modal-field">
-            <label className="modal-label" htmlFor="m-community-body">
-              Details
-            </label>
+
+          <div className="compose-field">
+            <div className="compose-label-row">
+              <label className="modal-label" htmlFor="m-community-body">Details</label>
+              <span className={`compose-char-count ${bodyLen > 3800 ? 'warn' : ''}`}>
+                {bodyLen}/4000
+              </span>
+            </div>
             <textarea
               id="m-community-body"
               className="modal-textarea community-post-textarea"
               rows={5}
               maxLength={4000}
-              placeholder="Explain the assignment, where you are stuck..."
+              placeholder="Explain what you're stuck on..."
               value={postValues.body}
               onChange={(event) => onPostChange('body', event.target.value)}
             />
             {postErrors.body ? <div className="field-error">{postErrors.body}</div> : null}
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              className="community-submit-btn"
-              type="button"
-              onClick={onPostSubmit}
-              disabled={posting}
-              style={{ flex: 1 }}
-            >
-              {posting ? 'Posting...' : 'Post'}
-            </button>
-            <button
-              className="community-refresh-btn"
-              type="button"
-              onClick={onRefresh}
-              disabled={loading}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              <RefreshIcon />
-              {loading ? '...' : 'Refresh'}
-            </button>
-          </div>
+
+          <button
+            className={`compose-submit-btn ${posting ? 'btn-loading' : ''}`}
+            type="button"
+            onClick={onPostSubmit}
+            disabled={posting}
+          >
+            <SendIcon />
+            <span>{posting ? 'Posting...' : 'Post'}</span>
+          </button>
         </div>
       </div>
     </>
@@ -328,58 +436,73 @@ function MobileComposeDrawer({
 
 export function CommunityView(props: CommunityViewProps) {
   const closeDrawerTimeoutRef = useRef<number | null>(null);
-  const previousPostingRef = useRef(props.posting);
+  const prevPostingRef = useRef(props.posting);
   const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
-  const [composeDrawerOpen, setComposeDrawerOpen] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
   const [drawerAnimating, setDrawerAnimating] = useState(false);
 
-  useEffect(() => {
-    return () => {
-      if (closeDrawerTimeoutRef.current) {
-        window.clearTimeout(closeDrawerTimeoutRef.current);
-      }
-    };
+  useEffect(() => () => {
+    if (closeDrawerTimeoutRef.current) {
+      window.clearTimeout(closeDrawerTimeoutRef.current);
+    }
   }, []);
 
   useEffect(() => {
     if (
-      previousPostingRef.current
+      prevPostingRef.current
       && !props.posting
       && !props.postValues.title
       && !props.postValues.body
-      && composeDrawerOpen
+      && composeOpen
     ) {
       closeDrawer();
     }
-
-    previousPostingRef.current = props.posting;
-  }, [composeDrawerOpen, props.postValues.body, props.postValues.title, props.posting]);
+    prevPostingRef.current = props.posting;
+  }, [composeOpen, props.postValues.body, props.postValues.title, props.posting]);
 
   useEffect(() => {
     setOpenMenuPostId(null);
   }, [props.activeSection]);
 
-  function clearCloseDrawerTimeout() {
+  useEffect(() => {
+    if (!openMenuPostId) {
+      return;
+    }
+
+    function handle(event: MouseEvent) {
+      const target = event.target as Element;
+      if (!target.closest('.community-post-menu-wrap')) {
+        setOpenMenuPostId(null);
+      }
+    }
+
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [openMenuPostId]);
+
+  function openDrawer() {
     if (closeDrawerTimeoutRef.current) {
       window.clearTimeout(closeDrawerTimeoutRef.current);
       closeDrawerTimeoutRef.current = null;
     }
-  }
-
-  function openDrawer() {
-    clearCloseDrawerTimeout();
     setDrawerAnimating(true);
-    setComposeDrawerOpen(true);
+    setComposeOpen(true);
   }
 
   function closeDrawer() {
-    clearCloseDrawerTimeout();
-    setComposeDrawerOpen(false);
+    if (closeDrawerTimeoutRef.current) {
+      window.clearTimeout(closeDrawerTimeoutRef.current);
+      closeDrawerTimeoutRef.current = null;
+    }
+    setComposeOpen(false);
     closeDrawerTimeoutRef.current = window.setTimeout(() => {
       setDrawerAnimating(false);
       closeDrawerTimeoutRef.current = null;
     }, 340);
   }
+
+  const titleLen = props.postValues.title.length;
+  const bodyLen = props.postValues.body.length;
 
   return (
     <div className="view active" id="view-community">
@@ -389,14 +512,12 @@ export function CommunityView(props: CommunityViewProps) {
         aria-label="Create a new post"
         onClick={openDrawer}
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <path d="M10 4V16M4 10H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
+        <PlusIcon />
       </button>
 
-      {composeDrawerOpen || drawerAnimating ? (
-        <MobileComposeDrawer
-          open={composeDrawerOpen}
+      {(composeOpen || drawerAnimating) ? (
+        <ComposeDrawer
+          open={composeOpen}
           onClose={closeDrawer}
           postValues={props.postValues}
           postErrors={props.postErrors}
@@ -404,21 +525,18 @@ export function CommunityView(props: CommunityViewProps) {
           status={props.status}
           onPostChange={props.onPostChange}
           onPostSubmit={props.onPostSubmit}
-          onRefresh={props.onRefresh}
-          loading={props.loading}
         />
       ) : null}
 
       <div className="community-layout">
         <aside className="community-sidebar">
           <div className="community-sidebar-head">
-            <div className="view-title">Community</div>
-            <InfoTip
-              text="Switch between all posts, your favorites, friends' posts, archived items, and deleted content."
-              placement="right"
-            />
+            <div className="view-title" style={{ fontSize: 18, marginBottom: 0 }}>Community</div>
+            <InfoTip text="Filter posts by category. Pinned posts float to the top." placement="right" />
           </div>
-          <div className="view-sub">Your feed, filtered your way.</div>
+          <div className="view-sub" style={{ marginBottom: 14, marginTop: 4, fontSize: 12.5 }}>
+            Your feed, filtered your way.
+          </div>
 
           <div className="community-section-list">
             {COMMUNITY_SECTIONS.map((section) => (
@@ -432,22 +550,32 @@ export function CommunityView(props: CommunityViewProps) {
               </button>
             ))}
           </div>
+
+          <button
+            className="community-refresh-btn"
+            type="button"
+            onClick={props.onRefresh}
+            disabled={props.loading}
+            aria-label="Refresh feed"
+            title="Refresh feed"
+            style={{ marginTop: 18 }}
+          >
+            <RefreshIcon />
+          </button>
         </aside>
 
         <section className="community-feed-column">
           {props.loading && !props.posts.length ? (
             <div className="community-empty-card">
               <div className="community-empty-title">Loading posts...</div>
-              <div className="community-empty-copy">Pulling the latest community activity.</div>
+              <div className="community-empty-copy">Pulling the latest activity.</div>
             </div>
           ) : null}
 
           {!props.loading && !props.posts.length ? (
             <div className="community-empty-card">
               <div className="community-empty-title">Nothing here yet</div>
-              <div className="community-empty-copy">
-                Try a different section or create the first post.
-              </div>
+              <div className="community-empty-copy">Try a different section or be the first to post.</div>
             </div>
           ) : null}
 
@@ -461,21 +589,18 @@ export function CommunityView(props: CommunityViewProps) {
             const sortedComments = sortComments(displayComments, currentSort);
 
             return (
-              <article key={post.id} className="community-post-card">
+              <article
+                key={post.id}
+                className={`community-post-card ${post.pinnedByCurrentUser ? 'is-pinned' : ''}`}
+              >
                 <div className="community-post-top">
                   <div className="community-post-author">
-                    <UserAvatar
-                      name={post.authorName}
-                      avatarUrl={post.authorAvatarUrl}
-                      className="community-avatar"
-                    />
+                    <UserAvatar name={post.authorName} avatarUrl={post.authorAvatarUrl} className="community-avatar" />
                     <div className="community-post-copy">
                       <div className="community-post-title">{post.title}</div>
-                      <div
-                        className="community-post-meta"
-                        title={new Date(post.createdAt).toLocaleString()}
-                      >
-                        <span>{post.authorName}</span>
+                      <div className="community-post-meta" title={new Date(post.createdAt).toLocaleString()}>
+                        <span className="community-post-meta-author">{post.authorName}</span>
+                        <span className="community-post-meta-sep">.</span>
                         <span>{getCommunityRelativeTime(post.createdAt)}</span>
                       </div>
                     </div>
@@ -486,15 +611,9 @@ export function CommunityView(props: CommunityViewProps) {
                       className="community-menu-btn"
                       type="button"
                       aria-label="Post options"
-                      onClick={() => {
-                        setOpenMenuPostId((current) => (current === post.id ? null : post.id));
-                      }}
+                      onClick={() => setOpenMenuPostId((current) => (current === post.id ? null : post.id))}
                     >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <circle cx="8" cy="3" r="1.2" fill="currentColor" />
-                        <circle cx="8" cy="8" r="1.2" fill="currentColor" />
-                        <circle cx="8" cy="13" r="1.2" fill="currentColor" />
-                      </svg>
+                      <DotsIcon />
                     </button>
 
                     {openMenuPostId === post.id ? (
@@ -502,60 +621,40 @@ export function CommunityView(props: CommunityViewProps) {
                         {isOwner && canDelete ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              setOpenMenuPostId(null);
-                              props.onDeletePost(post);
-                            }}
+                            className="menu-item menu-item--danger"
+                            onClick={() => { setOpenMenuPostId(null); props.onDeletePost(post); }}
                             disabled={props.actionLoadingKey === `delete-post:${post.id}`}
                           >
-                            <MenuItemLabel
-                              icon={<TrashIcon />}
-                              label={
-                                props.actionLoadingKey === `delete-post:${post.id}`
-                                  ? 'Deleting...'
-                                  : 'Delete'
-                              }
-                            />
+                            <TrashIcon />
+                            <span>{props.actionLoadingKey === `delete-post:${post.id}` ? 'Deleting...' : 'Delete'}</span>
                           </button>
                         ) : null}
                         <button
                           type="button"
-                          onClick={() => {
-                            setOpenMenuPostId(null);
-                            props.onToggleHidePost(post);
-                          }}
+                          className="menu-item"
+                          onClick={() => { setOpenMenuPostId(null); props.onToggleHidePost(post); }}
                           disabled={props.actionLoadingKey === `hide-post:${post.id}`}
                         >
-                          <MenuItemLabel
-                            icon={<ArchiveIcon />}
-                            label={post.hiddenByCurrentUser ? 'Unarchive' : 'Hide'}
-                          />
+                          <ArchiveIcon />
+                          <span>{post.hiddenByCurrentUser ? 'Unarchive' : 'Archive'}</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            setOpenMenuPostId(null);
-                            props.onTogglePinPost(post);
-                          }}
+                          className={`menu-item ${post.pinnedByCurrentUser ? 'is-active-item' : ''}`}
+                          onClick={() => { setOpenMenuPostId(null); props.onTogglePinPost(post); }}
                           disabled={props.actionLoadingKey === `pin-post:${post.id}`}
                         >
-                          <MenuItemLabel
-                            icon={<PinIcon />}
-                            label={post.pinnedByCurrentUser ? 'Unpin' : 'Pin'}
-                          />
+                          <PinIcon filled={post.pinnedByCurrentUser} />
+                          <span>{post.pinnedByCurrentUser ? 'Unpin' : 'Pin'}</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            setOpenMenuPostId(null);
-                            props.onToggleFavoritePost(post);
-                          }}
+                          className={`menu-item ${post.favoritedByCurrentUser ? 'is-active-item' : ''}`}
+                          onClick={() => { setOpenMenuPostId(null); props.onToggleFavoritePost(post); }}
                           disabled={props.actionLoadingKey === `favorite-post:${post.id}`}
                         >
-                          <MenuItemLabel
-                            icon={<StarIcon />}
-                            label={post.favoritedByCurrentUser ? 'Unfavorite' : 'Favorite'}
-                          />
+                          <StarIcon filled={post.favoritedByCurrentUser} />
+                          <span>{post.favoritedByCurrentUser ? 'Unfavorite' : 'Favorite'}</span>
                         </button>
                       </div>
                     ) : null}
@@ -564,12 +663,20 @@ export function CommunityView(props: CommunityViewProps) {
 
                 <div className="community-post-body">{post.body}</div>
 
-                <div className="community-post-tags">
-                  {post.pinnedByCurrentUser ? <span className="community-pill">Pinned</span> : null}
-                  {post.favoritedByCurrentUser ? <span className="community-pill">Favorite</span> : null}
-                  {post.hiddenByCurrentUser ? <span className="community-pill">Archived</span> : null}
-                  {post.status === 'deleted' ? <span className="community-pill">Deleted</span> : null}
-                </div>
+                {(post.pinnedByCurrentUser || post.favoritedByCurrentUser || post.hiddenByCurrentUser || post.status === 'deleted') ? (
+                  <div className="community-post-tags">
+                    {post.pinnedByCurrentUser && (
+                      <span className="community-pill community-pill--pin"><PinIcon filled /> Pinned</span>
+                    )}
+                    {post.favoritedByCurrentUser && (
+                      <span className="community-pill community-pill--star"><StarIcon filled /> Favorite</span>
+                    )}
+                    {post.hiddenByCurrentUser && <span className="community-pill">Archived</span>}
+                    {post.status === 'deleted' && (
+                      <span className="community-pill community-pill--danger">Deleted</span>
+                    )}
+                  </div>
+                ) : null}
 
                 {isOwner ? (
                   <div className="community-owner-note">{getDeleteHelpText(post)}</div>
@@ -587,90 +694,71 @@ export function CommunityView(props: CommunityViewProps) {
 
                 <div className="community-comments">
                   <div className="community-comments-head">
-                    <div>
-                      <div className="community-comments-title">
-                        Comments
-                        <div className="community-comments-count">{displayComments.length}</div>
-                        <InfoTip
-                          text="Comments are public. Sort by most liked, newest, or oldest."
-                          placement="top"
-                        />
-                      </div>
+                    <div className="community-comments-title">
+                      Comments
+                      {displayComments.length > 0 && (
+                        <span className="community-comments-count">{displayComments.length}</span>
+                      )}
+                      <InfoTip text="Sort by most liked, newest, or oldest." placement="top" />
                     </div>
                     <label className="community-comment-filter">
-                      <span>Sort</span>
                       <select
                         value={currentSort}
-                        onChange={(event) => {
-                          props.onCommentSortChange(
-                            post.id,
-                            event.target.value as CommunityCommentSort
-                          );
-                        }}
+                        onChange={(event) => props.onCommentSortChange(
+                          post.id,
+                          event.target.value as CommunityCommentSort
+                        )}
                       >
                         {COMMUNITY_COMMENT_SORT_OPTIONS.map((option) => (
-                          <option key={option.key} value={option.key}>
-                            {option.label}
-                          </option>
+                          <option key={option.key} value={option.key}>{option.label}</option>
                         ))}
                       </select>
                     </label>
                   </div>
 
                   <div className="community-comment-list">
-                    {sortedComments.length ? (
-                      sortedComments.map((comment) => (
-                        <div key={comment.id} className="community-comment">
-                          <div className="community-comment-top">
-                            <div className="community-comment-author">
-                              <UserAvatar
-                                name={comment.authorName}
-                                avatarUrl={comment.authorAvatarUrl}
-                                className="community-avatar community-avatar-small"
+                    {sortedComments.length ? sortedComments.map((comment) => (
+                      <div key={comment.id} className="community-comment">
+                        <div className="community-comment-top">
+                          <UserAvatar
+                            name={comment.authorName}
+                            avatarUrl={comment.authorAvatarUrl}
+                            className="community-avatar community-avatar-small"
+                          />
+                          <div className="community-comment-meta">
+                            <div className="community-comment-meta-top">
+                              <span className="community-comment-author-name">{comment.authorName}</span>
+                              {comment.userId === post.userId && (
+                                <span className="community-author-badge">OP</span>
+                              )}
+                              <span className="community-comment-time" title={new Date(comment.createdAt).toLocaleString()}>
+                                {getCommunityRelativeTime(comment.createdAt)}
+                              </span>
+                            </div>
+                            <div className="community-comment-body">{comment.body}</div>
+                            <div className="community-comment-actions">
+                              <LikeButton
+                                liked={comment.likedByCurrentUser}
+                                count={comment.likesCount}
+                                loading={props.actionLoadingKey === `like-comment:${comment.id}`}
+                                onToggle={() => props.onToggleLikeComment(post.id, comment)}
+                                ariaLabel={comment.likedByCurrentUser ? 'Remove like' : 'Like comment'}
                               />
-                              <div className="community-comment-meta">
-                                <div>
-                                  <span>{comment.authorName}</span>
-                                  {comment.userId === post.userId ? (
-                                    <span className="community-author-badge">Poster</span>
-                                  ) : null}
-                                </div>
-                                <span title={new Date(comment.createdAt).toLocaleString()}>
-                                  {getCommunityRelativeTime(comment.createdAt)}
-                                </span>
-                              </div>
+                              <FavoriteButton
+                                favorited={comment.favoritedByCurrentUser}
+                                loading={props.actionLoadingKey === `favorite-comment:${comment.id}`}
+                                onToggle={() => props.onToggleFavoriteComment(post.id, comment)}
+                                ariaLabel={comment.favoritedByCurrentUser ? 'Unfavorite comment' : 'Favorite comment'}
+                              />
                             </div>
                           </div>
-
-                          <div className="community-comment-body">{comment.body}</div>
-
-                          <div className="community-comment-actions">
-                            <LikeButton
-                              liked={comment.likedByCurrentUser}
-                              count={comment.likesCount}
-                              loading={props.actionLoadingKey === `like-comment:${comment.id}`}
-                              onToggle={() => props.onToggleLikeComment(post.id, comment)}
-                              ariaLabel={
-                                comment.likedByCurrentUser
-                                  ? 'Remove like from comment'
-                                  : 'Like comment'
-                              }
-                            />
-                            <button
-                              className="community-action-btn"
-                              type="button"
-                              onClick={() => props.onToggleFavoriteComment(post.id, comment)}
-                              disabled={props.actionLoadingKey === `favorite-comment:${comment.id}`}
-                            >
-                              <StarIcon />
-                              {comment.favoritedByCurrentUser ? 'Unfavorite' : 'Favorite'}
-                            </button>
-                          </div>
                         </div>
-                      ))
-                    ) : (
+                      </div>
+                    )) : (
                       <div className="community-comment-empty">
-                        No comments match this filter yet.
+                        {props.activeSection === 'favorite-comments'
+                          ? 'No favorited comments on this post.'
+                          : 'No comments yet. Be the first to help!'}
                       </div>
                     )}
                   </div>
@@ -679,9 +767,9 @@ export function CommunityView(props: CommunityViewProps) {
                     <div className="community-comment-form">
                       <textarea
                         className="modal-textarea community-comment-textarea"
-                        rows={3}
+                        rows={2}
                         maxLength={2000}
-                        placeholder="Offer help, ask a follow-up, or add detail..."
+                        placeholder="Add a comment..."
                         value={props.commentDrafts[post.id] || ''}
                         onChange={(event) => props.onCommentChange(post.id, event.target.value)}
                       />
@@ -695,12 +783,15 @@ export function CommunityView(props: CommunityViewProps) {
                           onClick={() => props.onCommentSubmit(post.id)}
                           disabled={props.commentLoadingId === post.id}
                         >
-                          {props.commentLoadingId === post.id ? 'Posting...' : 'Comment'}
+                          <SendIcon />
+                          <span>{props.commentLoadingId === post.id ? 'Posting...' : 'Reply'}</span>
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="community-owner-note">Deleted posts are read-only.</div>
+                    <div className="community-owner-note" style={{ marginTop: 12 }}>
+                      Deleted posts are read-only.
+                    </div>
                   )}
                 </div>
               </article>
@@ -709,36 +800,38 @@ export function CommunityView(props: CommunityViewProps) {
         </section>
 
         <aside className="community-compose-card">
-          <div className="community-compose-top">
-            <div>
-              <div className="view-title">Create Post</div>
-              <div className="view-sub">Share what you need help with.</div>
+          {props.status?.text ? (
+            <div className={`status-banner ${props.status.tone}`} style={{ marginBottom: 18 }}>
+              {props.status.text}
             </div>
+          ) : null}
+
+          <div className="community-compose-top">
+            <div className="view-title" style={{ fontSize: 17, marginBottom: 0 }}>New Post</div>
             <button
               className="community-refresh-btn"
               type="button"
               onClick={props.onRefresh}
               disabled={props.loading}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              aria-label="Refresh feed"
+              title="Refresh feed"
             >
               <RefreshIcon />
-              {props.loading ? '...' : 'Refresh'}
             </button>
           </div>
+          <div className="view-sub" style={{ marginBottom: 18, fontSize: 12.5, marginTop: 4 }}>
+            Share what you need help with.
+          </div>
 
-          {props.status?.text ? (
-            <div className={`status-banner ${props.status.tone}`}>{props.status.text}</div>
-          ) : null}
-
-          <div className="community-form">
-            <div className="modal-field">
-              <label className="modal-label" htmlFor="community-title">
-                Post title
-                <InfoTip
-                  text="Keep it short and descriptive - 3 to 120 characters."
-                  placement="top"
-                />
-              </label>
+          <div className="compose-form">
+            <div className="compose-field">
+              <div className="compose-label-row">
+                <label className="modal-label" htmlFor="community-title">
+                  Title
+                  <InfoTip text="3-120 characters." placement="top" />
+                </label>
+                <span className={`compose-char-count ${titleLen > 110 ? 'warn' : ''}`}>{titleLen}/120</span>
+              </div>
               <input
                 id="community-title"
                 className="modal-input"
@@ -753,31 +846,31 @@ export function CommunityView(props: CommunityViewProps) {
               ) : null}
             </div>
 
-            <div className="modal-field">
-              <label className="modal-label" htmlFor="community-body">
-                Details
-              </label>
+            <div className="compose-field">
+              <div className="compose-label-row">
+                <label className="modal-label" htmlFor="community-body">Details</label>
+                <span className={`compose-char-count ${bodyLen > 3800 ? 'warn' : ''}`}>{bodyLen}/4000</span>
+              </div>
               <textarea
                 id="community-body"
                 className="modal-textarea community-post-textarea"
                 rows={6}
                 maxLength={4000}
-                placeholder="Explain the assignment, where you are stuck, and what kind of help would be useful."
+                placeholder="Explain where you're stuck..."
                 value={props.postValues.body}
                 onChange={(event) => props.onPostChange('body', event.target.value)}
               />
-              {props.postErrors.body ? (
-                <div className="field-error">{props.postErrors.body}</div>
-              ) : null}
+              {props.postErrors.body ? <div className="field-error">{props.postErrors.body}</div> : null}
             </div>
 
             <button
-              className="community-submit-btn"
+              className={`compose-submit-btn ${props.posting ? 'btn-loading' : ''}`}
               type="button"
               onClick={props.onPostSubmit}
               disabled={props.posting}
             >
-              {props.posting ? 'Posting...' : 'Post'}
+              <SendIcon />
+              <span>{props.posting ? 'Posting...' : 'Post'}</span>
             </button>
           </div>
         </aside>

@@ -19,6 +19,33 @@ interface DashboardViewProps {
   onBulkDelete: () => void;
 }
 
+function CloseIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path
+        d="M1.5 1.5L10.5 10.5M10.5 1.5L1.5 10.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path
+        d="M1.5 6L4.5 9L10.5 3"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function DashboardView(props: DashboardViewProps) {
   const finishTimeoutRef = useRef<number | null>(null);
   const deleteTimeoutRef = useRef<number | null>(null);
@@ -46,15 +73,13 @@ export function DashboardView(props: DashboardViewProps) {
       return;
     }
 
-    const ids = new Set(props.selectedIds);
-    setFinishingIds(ids);
+    setFinishingIds(new Set(props.selectedIds));
 
     if (finishTimeoutRef.current) {
       window.clearTimeout(finishTimeoutRef.current);
     }
 
     finishTimeoutRef.current = window.setTimeout(() => {
-      setFinishingIds(new Set());
       props.onBulkFinish();
       finishTimeoutRef.current = null;
     }, 480);
@@ -65,15 +90,13 @@ export function DashboardView(props: DashboardViewProps) {
       return;
     }
 
-    const ids = new Set(props.selectedIds);
-    setDeletingIds(ids);
+    setDeletingIds(new Set(props.selectedIds));
 
     if (deleteTimeoutRef.current) {
       window.clearTimeout(deleteTimeoutRef.current);
     }
 
     deleteTimeoutRef.current = window.setTimeout(() => {
-      setDeletingIds(new Set());
       props.onBulkDelete();
       deleteTimeoutRef.current = null;
     }, 420);
@@ -84,10 +107,10 @@ export function DashboardView(props: DashboardViewProps) {
       <div className="dash-top">
         <div className={`bulk-actions ${visibleSelectedCount ? 'show' : ''}`}>
           <button className="action-pill finish" type="button" onClick={handleBulkFinish}>
-            Mark Finished
+            <CheckIcon /> Mark Finished
           </button>
           <button className="action-pill del" type="button" onClick={handleBulkDelete}>
-            Delete
+            <CloseIcon /> Delete
           </button>
         </div>
         <button

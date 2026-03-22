@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  abbreviateClass,
-  formatDate,
-  getDifficultyClassName
-} from '../../lib/assignment';
+import { abbreviateClass, formatDate, getDifficultyClassName } from '../../lib/assignment';
 import type { Assignment } from '../../types';
 
 interface SimpleTableViewProps {
@@ -57,7 +53,6 @@ export function SimpleTableView(props: SimpleTableViewProps) {
     }
 
     deleteTimeoutRef.current = window.setTimeout(() => {
-      setDeletingIds(new Set());
       props.onBulkDelete?.();
       deleteTimeoutRef.current = null;
     }, 420);
@@ -78,6 +73,7 @@ export function SimpleTableView(props: SimpleTableViewProps) {
 
         <div className="view-title">{props.title}</div>
         <div className="view-sub">{props.subtitle}</div>
+
         <div className="ft-table-wrap">
           <table id={props.id}>
             <thead>
@@ -128,7 +124,9 @@ export function SimpleTableView(props: SimpleTableViewProps) {
               ))}
             </tbody>
           </table>
-          {!props.assignments.length ? <div className="simple-empty">{props.emptyMessage}</div> : null}
+          {!props.assignments.length ? (
+            <div className="simple-empty">{props.emptyMessage}</div>
+          ) : null}
         </div>
       </div>
     </div>

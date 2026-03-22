@@ -17,8 +17,21 @@ alter table public.assignments
   add column if not exists repeat_timezone text,
   add column if not exists repeat_rule_id uuid;
 
-alter table public.assignments
-  alter column due_date drop not null;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'assignments'
+      and column_name = 'due_date'
+  ) then
+    execute 'alter table public.assignments alter column due_date drop not null';
+  else
+    raise exception 'public.assignments.due_date is missing. Add due_date before running recurring_assignments.sql';
+  end if;
+end
+$$;
 
 create unique index if not exists assignments_repeat_rule_due_idx
   on public.assignments (repeat_rule_id, due_date);

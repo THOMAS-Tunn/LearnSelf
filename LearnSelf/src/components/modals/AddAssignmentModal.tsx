@@ -129,7 +129,7 @@ export function AddAssignmentModal(props: AddAssignmentModalProps) {
                 <div className="modal-field">
                   <label className="modal-label" htmlFor="f-repeat-time">Due Time *</label>
                   <input
-                    className="modal-input"
+                    className="modal-input modal-input-time"
                     id="f-repeat-time"
                     type="time"
                     value={props.values.repeatTime}

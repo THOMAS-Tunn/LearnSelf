@@ -1,4 +1,10 @@
-import { DIFFICULTIES } from '../../constants';
+import {
+  DIFFICULTIES,
+  MONTH_DAY_PICKER_OPTIONS,
+  REPEAT_EVERY_OPTIONS,
+  WEEKDAY_PICKER_OPTIONS
+} from '../../constants';
+import { formatRepeatSummary } from '../../lib/assignment';
 import type { AssignmentFormValues } from '../../types';
 import { DatePicker } from '../common/DatePicker';
 
@@ -22,6 +28,14 @@ function CloseIcon() {
 
 export function AddAssignmentModal(props: AddAssignmentModalProps) {
   if (!props.open) return null;
+
+  function toggleNumberSelection(field: 'repeatDaysOfWeek' | 'repeatDaysOfMonth', value: number) {
+    const currentValues = props.values[field];
+    const nextValues = currentValues.includes(value)
+      ? currentValues.filter((item) => item !== value)
+      : [...currentValues, value];
+    props.onChange(field, nextValues as AssignmentFormValues[typeof field]);
+  }
 
   return (
     <div className="overlay show" onClick={(event) => event.target === event.currentTarget && props.onClose()}>
@@ -69,6 +83,105 @@ export function AddAssignmentModal(props: AddAssignmentModalProps) {
         <div className="modal-field">
           <label className="modal-label" htmlFor="f-desc">Description</label>
           <textarea className="modal-textarea" id="f-desc" placeholder="Optional notes about this assignment..." value={props.values.desc} onChange={(e) => props.onChange('desc', e.target.value)} />
+        </div>
+
+        <div className="repeat-panel">
+          <label className="repeat-toggle" htmlFor="f-repeat">
+            <input
+              className="repeat-toggle-input"
+              id="f-repeat"
+              type="checkbox"
+              checked={props.values.repeatEnabled}
+              onChange={(event) => props.onChange('repeatEnabled', event.target.checked)}
+            />
+            <span className="repeat-toggle-copy">
+              <span className="repeat-toggle-title">Repeat</span>
+              <span className="repeat-toggle-note">Create future assignments automatically from this template.</span>
+            </span>
+          </label>
+
+          {props.values.repeatEnabled ? (
+            <div className="repeat-builder">
+              <div className="modal-row">
+                <div className="modal-field">
+                  <label className="modal-label" htmlFor="f-repeat-every">Every *</label>
+                  <select
+                    className="modal-select"
+                    id="f-repeat-every"
+                    value={props.values.repeatEvery}
+                    onChange={(event) => props.onChange('repeatEvery', event.target.value as AssignmentFormValues['repeatEvery'])}
+                  >
+                    <option value="">- Select -</option>
+                    {REPEAT_EVERY_OPTIONS.map((option) => (
+                      <option key={option.key} value={option.key}>{option.label}</option>
+                    ))}
+                  </select>
+                  {props.errors.repeatEvery ? <div className="field-error show">{props.errors.repeatEvery}</div> : null}
+                </div>
+
+                <div className="modal-field">
+                  <label className="modal-label" htmlFor="f-repeat-time">Time *</label>
+                  <input
+                    className="modal-input"
+                    id="f-repeat-time"
+                    type="time"
+                    value={props.values.repeatTime}
+                    onChange={(event) => props.onChange('repeatTime', event.target.value)}
+                  />
+                  {props.errors.repeatTime ? <div className="field-error show">{props.errors.repeatTime}</div> : null}
+                </div>
+              </div>
+
+              {props.values.repeatEvery === 'days-of-week' ? (
+                <div className="modal-field">
+                  <label className="modal-label">Days of the Week *</label>
+                  <div className="repeat-chip-grid">
+                    {WEEKDAY_PICKER_OPTIONS.map((option) => {
+                      const active = props.values.repeatDaysOfWeek.includes(option.value);
+                      return (
+                        <button
+                          key={option.value}
+                          className={`repeat-chip ${active ? 'active' : ''}`}
+                          type="button"
+                          onClick={() => toggleNumberSelection('repeatDaysOfWeek', option.value)}
+                        >
+                          {option.shortLabel}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {props.errors.repeatDaysOfWeek ? <div className="field-error show">{props.errors.repeatDaysOfWeek}</div> : null}
+                </div>
+              ) : null}
+
+              {props.values.repeatEvery === 'days-of-month' ? (
+                <div className="modal-field">
+                  <label className="modal-label">Days of the Month *</label>
+                  <div className="repeat-chip-grid repeat-chip-grid-month">
+                    {MONTH_DAY_PICKER_OPTIONS.map((day) => {
+                      const active = props.values.repeatDaysOfMonth.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          className={`repeat-chip ${active ? 'active' : ''}`}
+                          type="button"
+                          onClick={() => toggleNumberSelection('repeatDaysOfMonth', day)}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {props.errors.repeatDaysOfMonth ? <div className="field-error show">{props.errors.repeatDaysOfMonth}</div> : null}
+                </div>
+              ) : null}
+
+              <div className="repeat-summary">
+                <div className="repeat-summary-line">{formatRepeatSummary(props.values)}</div>
+                <div className="repeat-summary-sub">Runs in {props.values.repeatTimezone || 'your local timezone'} and can keep generating while you are offline.</div>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <button className={`modal-submit ${props.loading ? 'btn-loading' : ''}`} type="button" onClick={props.onSubmit} disabled={props.loading}>

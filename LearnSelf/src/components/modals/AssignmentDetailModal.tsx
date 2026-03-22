@@ -1,8 +1,15 @@
-import { calcPriority, formatDate, getDifficultyClassName, isPastDueDate } from '../../lib/assignment';
+import {
+  formatDate,
+  formatRepeatSummary,
+  getDifficultyClassName,
+  isPastDueDate,
+  type AssignmentPriority
+} from '../../lib/assignment';
 import type { Assignment } from '../../types';
 
 interface AssignmentDetailModalProps {
   assignment: Assignment | null;
+  priority: AssignmentPriority | null;
   onClose: () => void;
 }
 
@@ -14,9 +21,8 @@ function CloseIcon() {
   );
 }
 
-export function AssignmentDetailModal({ assignment, onClose }: AssignmentDetailModalProps) {
+export function AssignmentDetailModal({ assignment, priority, onClose }: AssignmentDetailModalProps) {
   if (!assignment) return null;
-  const priority = calcPriority(assignment);
   const isPastDue = isPastDueDate(assignment.due);
 
   return (
@@ -33,7 +39,10 @@ export function AssignmentDetailModal({ assignment, onClose }: AssignmentDetailM
         <div className="detail-row"><span className="detail-key">Assign Date</span><span className="detail-val">{formatDate(assignment.ad)}</span></div>
         <div className="detail-row"><span className="detail-key">Due Date</span><span className={`detail-val emphasis ${isPastDue ? 'is-overdue' : ''}`}>{formatDate(assignment.due)}</span></div>
         <div className="detail-row"><span className="detail-key">Difficulty</span><span className="detail-val"><span className={`diff-badge ${getDifficultyClassName(assignment.difficulty)}`}>{assignment.difficulty}</span></span></div>
-        <div className="detail-row"><span className="detail-key">Priority</span><span className="detail-val"><span className={`prio-badge prio-${priority.color}`}>{priority.score}</span></span></div>
+        {assignment.repeatEnabled ? (
+          <div className="detail-row"><span className="detail-key">Repeat</span><span className="detail-val detail-pre">{formatRepeatSummary(assignment)}{assignment.repeatTimezone ? ` (${assignment.repeatTimezone})` : ''}</span></div>
+        ) : null}
+        <div className="detail-row"><span className="detail-key">Priority</span><span className="detail-val">{priority ? <span className={`prio-badge prio-${priority.color}`}>{priority.score}</span> : '-'}</span></div>
       </div>
     </div>
   );

@@ -14,7 +14,16 @@ import { ToolsView } from './components/views/ToolsView';
 import { HelpView } from './components/views/HelpView';
 import { ProfileView } from './components/views/ProfileView';
 import { SettingsView } from './components/views/SettingsView';
-import { getInitialUser, sortAssignments } from './lib/assignment';
+import {
+  buildAssignmentPriorityState,
+  createEmptyAssignmentForm,
+  getInitialGradingMode,
+  getInitialUser,
+  getNextRepeatOccurrence,
+  getRepeatAnchorDate,
+  getRepeatDueOffsetDays,
+  saveGradingMode
+} from './lib/assignment';
 import {
   deleteCommunityPost,
   fetchCommunityPosts,
@@ -30,17 +39,21 @@ import {
 import { addFriend, fetchFriends, removeFriendships, searchDirectoryProfiles, syncUserDirectoryProfile } from './lib/social';
 import {
   createSupabaseBrowserClient,
+  deleteAssignmentRepeatRule,
   deleteAssignments,
   fetchAssignments,
   getInitialBrowserSession,
   getSupabaseConfig,
   insertAssignment,
+  insertAssignmentRepeatRule,
   mapUser,
+  syncRecurringAssignments,
   updateAssignmentStatuses
 } from './lib/supabase';
 import type {
   Assignment,
   AssignmentFormValues,
+  AssignmentRepeatRulePayload,
   CommunityComment,
   CommunityCommentSort,
   CommunityFeedSection,
@@ -48,19 +61,11 @@ import type {
   CommunityPostFormValues,
   FriendRecord,
   FriendSearchResult,
+  GradingMode,
   StatusMessage,
   UserProfile,
   ViewName
 } from './types';
-
-const emptyAssignmentForm: AssignmentFormValues = {
-  name: '',
-  cls: '',
-  difficulty: '',
-  ad: '',
-  due: '',
-  desc: ''
-};
 
 const emptyCommunityPostForm: CommunityPostFormValues = {
   title: '',
@@ -77,6 +82,24 @@ function formatForgotPasswordError(error: unknown) {
 
   if (normalized.includes('email not confirmed')) {
     return 'This email still needs to be confirmed before you can reset the password.';
+  }
+
+  return message;
+}
+
+function formatAssignmentError(error: unknown, fallback: string) {
+  const message = getErrorMessage(error, fallback);
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes('assignment_repeat_rules')
+    || normalized.includes('repeat_enabled')
+    || normalized.includes('repeat_every')
+    || normalized.includes('repeat_time')
+    || normalized.includes('repeat_rule')
+    || normalized.includes('sync_recurring_assignments_for_current_user')
+  ) {
+    return 'Recurring assignments are not set up yet. Run the SQL in supabase/recurring_assignments.sql, then try again.';
   }
 
   return message;
@@ -205,9 +228,10 @@ export default function App() {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [loginErrors, setLoginErrors] = useState<{ email?: string; password?: string }>({});
   const [signupErrors, setSignupErrors] = useState<{ name?: string; email?: string; password?: string }>({});
-  const [addForm, setAddForm] = useState<AssignmentFormValues>(emptyAssignmentForm);
+  const [addForm, setAddForm] = useState<AssignmentFormValues>(() => createEmptyAssignmentForm());
   const [addFormErrors, setAddFormErrors] = useState<Partial<Record<keyof AssignmentFormValues, string>>>({});
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [gradingMode, setGradingMode] = useState<GradingMode>(getInitialGradingMode);
   const [loginStatus, setLoginStatus] = useState<StatusMessage | null>(null);
   const [signupStatus, setSignupStatus] = useState<StatusMessage | null>(null);
   const [forgotPasswordStatus, setForgotPasswordStatus] = useState<StatusMessage | null>(null);
@@ -245,7 +269,11 @@ export default function App() {
   const hydratedSessionKeyRef = useRef('');
   const sessionLoadRequestRef = useRef(0);
 
-  const sortedAssignments = useMemo(() => sortAssignments(assignments), [assignments]);
+  const assignmentPriorityState = useMemo(
+    () => buildAssignmentPriorityState(assignments, gradingMode),
+    [assignments, gradingMode]
+  );
+  const sortedAssignments = assignmentPriorityState.sortedAssignments;
   const selectableAssignments = useMemo(() => {
     switch (activeView) {
       case 'finished':
@@ -265,6 +293,10 @@ export default function App() {
   useEffect(() => {
     setSelectedIds([]);
   }, [activeView]);
+
+  useEffect(() => {
+    saveGradingMode(gradingMode);
+  }, [gradingMode]);
 
   function isRecoverableSessionError(error: unknown) {
     const message = getErrorMessage(error, '').toLowerCase();
@@ -442,6 +474,7 @@ export default function App() {
     setFriendActionLoadingKey(null);
 
     try {
+      await syncRecurringAssignments(activeClient);
       const allAssignments = await fetchAssignments(activeClient, userId);
       if (requestId !== sessionLoadRequestRef.current) return;
 
@@ -460,7 +493,7 @@ export default function App() {
       }
 
       hydratedSessionKeyRef.current = '';
-      const message = getErrorMessage(error, 'Unable to load assignments.');
+      const message = formatAssignmentError(error, 'Unable to load assignments.');
       setLoginStatus({ tone: 'error', text: `Signed in, but loading assignments failed: ${message}` });
       setAssignments([]);
       setFinished([]);
@@ -488,6 +521,8 @@ export default function App() {
     setResetPasswordConfirm('');
     setResetPasswordStatus(null);
     setAddModalOpen(false);
+    setAddForm(createEmptyAssignmentForm());
+    setAddFormErrors({});
     setAddLoading(false);
     setLogoutLoading(false);
     setProfileName('');
@@ -523,6 +558,51 @@ export default function App() {
     setFriendActionLoadingKey(null);
   }
 
+  function handleAddFormChange<K extends keyof AssignmentFormValues>(field: K, value: AssignmentFormValues[K]) {
+    setAddForm((current) => {
+      const next: AssignmentFormValues = {
+        ...current,
+        [field]: value
+      } as AssignmentFormValues;
+
+      if (field === 'repeatEnabled' && !value) {
+        next.repeatEvery = '';
+        next.repeatDaysOfWeek = [];
+        next.repeatDaysOfMonth = [];
+      }
+
+      if (field === 'repeatEvery') {
+        if (value !== 'days-of-week') {
+          next.repeatDaysOfWeek = [];
+        }
+        if (value !== 'days-of-month') {
+          next.repeatDaysOfMonth = [];
+        }
+      }
+
+      if (field === 'repeatDaysOfWeek') {
+        next.repeatDaysOfWeek = [...new Set(value as number[])].sort((left, right) => left - right);
+      }
+
+      if (field === 'repeatDaysOfMonth') {
+        next.repeatDaysOfMonth = [...new Set(value as number[])].sort((left, right) => left - right);
+      }
+
+      return next;
+    });
+
+    setAddFormErrors((current) => ({
+      ...current,
+      [field]: undefined,
+      ...(field === 'repeatEnabled' || field === 'repeatEvery'
+        ? { repeatEvery: undefined, repeatTime: undefined, repeatDaysOfWeek: undefined, repeatDaysOfMonth: undefined }
+        : {}),
+      ...(field === 'ad' || field === 'due'
+        ? { due: undefined, repeatDaysOfWeek: undefined, repeatDaysOfMonth: undefined }
+        : {})
+    }));
+  }
+
   function validateLogin() {
     const nextErrors: typeof loginErrors = {};
     if (!loginEmail.trim()) nextErrors.email = 'Please enter your email.';
@@ -545,8 +625,85 @@ export default function App() {
     if (!addForm.name.trim()) nextErrors.name = 'Name is required.';
     if (!addForm.difficulty) nextErrors.difficulty = 'Difficulty is required.';
     if (!addForm.due) nextErrors.due = 'Due date is required.';
+
+    const assignedDate = addForm.ad ? new Date(`${addForm.ad}T00:00:00`) : null;
+    const dueDate = addForm.due ? new Date(`${addForm.due}T00:00:00`) : null;
+
+    if (
+      assignedDate
+      && dueDate
+      && !Number.isNaN(assignedDate.getTime())
+      && !Number.isNaN(dueDate.getTime())
+      && dueDate.getTime() < assignedDate.getTime()
+    ) {
+      nextErrors.due = 'Due date needs to be on or after the assign date.';
+    }
+
+    if (addForm.repeatEnabled) {
+      if (!addForm.repeatEvery) {
+        nextErrors.repeatEvery = 'Choose how this assignment should repeat.';
+      }
+
+      if (!/^\d{2}:\d{2}$/.test(addForm.repeatTime.trim())) {
+        nextErrors.repeatTime = 'Choose a valid repeat time.';
+      }
+
+      const anchorDate = getRepeatAnchorDate(addForm);
+      const anchor = anchorDate ? new Date(`${anchorDate}T00:00:00`) : null;
+
+      if (addForm.repeatEvery === 'days-of-week') {
+        if (!addForm.repeatDaysOfWeek.length) {
+          nextErrors.repeatDaysOfWeek = 'Pick at least one weekday.';
+        } else if (anchor && !addForm.repeatDaysOfWeek.includes(anchor.getDay())) {
+          nextErrors.repeatDaysOfWeek = 'Include the first assignment day so the repeat schedule matches the starting date.';
+        }
+      }
+
+      if (addForm.repeatEvery === 'days-of-month') {
+        if (!addForm.repeatDaysOfMonth.length) {
+          nextErrors.repeatDaysOfMonth = 'Pick at least one day of the month.';
+        } else if (anchor && !addForm.repeatDaysOfMonth.includes(anchor.getDate())) {
+          nextErrors.repeatDaysOfMonth = 'Include the first assignment date so the repeat schedule matches the starting date.';
+        }
+      }
+    }
+
     setAddFormErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
+  }
+
+  function buildRepeatRulePayload(): AssignmentRepeatRulePayload | null {
+    if (!addForm.repeatEnabled || !addForm.difficulty || !addForm.repeatEvery) {
+      return null;
+    }
+
+    const anchorDate = getRepeatAnchorDate(addForm);
+    const nextOccurrenceOn = getNextRepeatOccurrence(
+      anchorDate,
+      addForm.repeatEvery,
+      addForm.repeatDaysOfWeek,
+      addForm.repeatDaysOfMonth
+    );
+
+    if (!anchorDate || !nextOccurrenceOn) {
+      return null;
+    }
+
+    return {
+      name: addForm.name.trim(),
+      cls: addForm.cls.trim(),
+      difficulty: addForm.difficulty,
+      desc: addForm.desc.trim(),
+      repeatEvery: addForm.repeatEvery,
+      repeatTime: addForm.repeatTime,
+      repeatDaysOfWeek: addForm.repeatDaysOfWeek,
+      repeatDaysOfMonth: addForm.repeatDaysOfMonth,
+      repeatTimezone: addForm.repeatTimezone,
+      anchorDate,
+      usesAssignedDate: Boolean(addForm.ad),
+      dueOffsetDays: getRepeatDueOffsetDays(addForm),
+      nextOccurrenceOn
+    };
   }
 
   function validateCommunityPostForm() {
@@ -1173,6 +1330,7 @@ export default function App() {
   async function handleAddAssignment() {
     if (!validateAssignmentForm() || !client || !addForm.difficulty) return;
     setAddLoading(true);
+    let repeatRuleId = '';
 
     try {
       const { data: userData, error: userError } = await client.auth.getUser();
@@ -1181,6 +1339,12 @@ export default function App() {
       const userId = userData.user?.id || currentUser.id;
       if (!userId) {
         throw new Error('You are no longer signed in. Please log in again and retry.');
+      }
+
+      const repeatRulePayload = buildRepeatRulePayload();
+
+      if (repeatRulePayload) {
+        repeatRuleId = await insertAssignmentRepeatRule(client, repeatRulePayload, userId);
       }
 
       const saved = await insertAssignment(
@@ -1193,22 +1357,37 @@ export default function App() {
           ad: addForm.ad,
           due: addForm.due,
           desc: addForm.desc.trim(),
-          status: 'active'
+          status: 'active',
+          repeatEnabled: addForm.repeatEnabled,
+          repeatEvery: addForm.repeatEvery,
+          repeatTime: addForm.repeatTime,
+          repeatDaysOfWeek: addForm.repeatDaysOfWeek,
+          repeatDaysOfMonth: addForm.repeatDaysOfMonth,
+          repeatTimezone: addForm.repeatTimezone,
+          repeatRuleId
         },
         userId
       );
 
       setAssignments((current) => [...current, saved]);
       setAddModalOpen(false);
-      setAddForm(emptyAssignmentForm);
+      setAddForm(createEmptyAssignmentForm());
       setAddFormErrors({});
     } catch (error) {
+      if (repeatRuleId) {
+        try {
+          await deleteAssignmentRepeatRule(client, repeatRuleId);
+        } catch {
+          // Keep the original error as the main failure path.
+        }
+      }
+
       if (isRecoverableSessionError(error)) {
         await recoverBrokenSession();
         return;
       }
 
-      const message = getErrorMessage(error, 'Could not save assignment.');
+      const message = formatAssignmentError(error, 'Could not save assignment.');
       setLoginStatus({ tone: 'error', text: `Could not save assignment: ${message}` });
     } finally {
       setAddLoading(false);
@@ -1343,10 +1522,13 @@ export default function App() {
         return (
           <DashboardView
             assignments={sortedAssignments}
+            gradingMode={gradingMode}
+            priorities={assignmentPriorityState.priorities}
+            onGradingModeChange={setGradingMode}
             selectedIds={selectedIds}
             onToggleSelected={handleToggleSelected}
             onToggleSelectAll={handleToggleSelectAll}
-            onOpenAddModal={() => { setAddForm(emptyAssignmentForm); setAddFormErrors({}); setAddModalOpen(true); }}
+            onOpenAddModal={() => { setAddForm(createEmptyAssignmentForm()); setAddFormErrors({}); setAddModalOpen(true); }}
             onOpenDetails={setSelectedAssignment}
             onBulkFinish={() => void moveSelectedAssignments('active', 'finished')}
             onBulkDelete={() => void moveSelectedAssignments('active', 'trashed')}
@@ -1554,10 +1736,14 @@ export default function App() {
         errors={addFormErrors}
         loading={addLoading}
         onClose={() => setAddModalOpen(false)}
-        onChange={(field, value) => setAddForm((current) => ({ ...current, [field]: value }))}
+        onChange={handleAddFormChange}
         onSubmit={() => void handleAddAssignment()}
       />
-      <AssignmentDetailModal assignment={selectedAssignment} onClose={() => setSelectedAssignment(null)} />
+      <AssignmentDetailModal
+        assignment={selectedAssignment}
+        priority={selectedAssignment ? assignmentPriorityState.priorities[selectedAssignment.id] ?? null : null}
+        onClose={() => setSelectedAssignment(null)}
+      />
       <ResetPasswordModal
         open={resetPasswordOpen}
         password={resetPasswordValue}

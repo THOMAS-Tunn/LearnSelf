@@ -2,6 +2,8 @@ export type ViewName = 'dashboard' | 'community' | 'friends' | 'finished' | 'tra
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'Group';
 export type AssignmentStatus = 'active' | 'finished' | 'trashed';
+export type GradingMode = 'newest-first' | 'oldest-first';
+export type AssignmentRepeatEvery = 'day' | 'week' | 'month' | 'days-of-week' | 'days-of-month';
 export type CommunityPostStatus = 'open' | 'deleted';
 export type CommunityFeedSection = 'all' | 'favorite-posts' | 'favorite-comments' | 'my-posts' | 'friend-posts' | 'archived' | 'deleted';
 export type CommunityCommentSort = 'oldest' | 'newest' | 'most-liked';
@@ -22,6 +24,13 @@ export interface Assignment {
   due: string;
   desc: string;
   status: AssignmentStatus;
+  repeatEnabled: boolean;
+  repeatEvery: AssignmentRepeatEvery | '';
+  repeatTime: string;
+  repeatDaysOfWeek: number[];
+  repeatDaysOfMonth: number[];
+  repeatTimezone: string;
+  repeatRuleId: string;
 }
 
 export interface AssignmentFormValues {
@@ -31,6 +40,28 @@ export interface AssignmentFormValues {
   ad: string;
   due: string;
   desc: string;
+  repeatEnabled: boolean;
+  repeatEvery: '' | AssignmentRepeatEvery;
+  repeatTime: string;
+  repeatDaysOfWeek: number[];
+  repeatDaysOfMonth: number[];
+  repeatTimezone: string;
+}
+
+export interface AssignmentRepeatRulePayload {
+  name: string;
+  cls: string;
+  difficulty: Difficulty;
+  desc: string;
+  repeatEvery: AssignmentRepeatEvery;
+  repeatTime: string;
+  repeatDaysOfWeek: number[];
+  repeatDaysOfMonth: number[];
+  repeatTimezone: string;
+  anchorDate: string;
+  usesAssignedDate: boolean;
+  dueOffsetDays: number;
+  nextOccurrenceOn: string;
 }
 
 export interface CommunityComment {

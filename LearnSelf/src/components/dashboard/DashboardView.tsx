@@ -1,17 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
+import { GRADING_MODE_OPTIONS } from '../../constants';
 import {
   abbreviateClass,
-  calcPriority,
   formatDate,
   getDifficultyClassName,
-  isPastDueDate
+  getGradingModeMeta,
+  isPastDueDate,
+  type AssignmentPriority
 } from '../../lib/assignment';
 import { InfoTip } from '../common/InfoTip';
-import type { Assignment } from '../../types';
+import type { Assignment, GradingMode } from '../../types';
 
 interface DashboardViewProps {
   assignments: Assignment[];
+  priorities: Record<string, AssignmentPriority>;
+  gradingMode: GradingMode;
   selectedIds: string[];
+  onGradingModeChange: (mode: GradingMode) => void;
   onToggleSelected: (id: string, checked: boolean) => void;
   onToggleSelectAll: (checked: boolean) => void;
   onOpenAddModal: () => void;
@@ -58,6 +63,10 @@ function PlusIcon() {
 export function DashboardView(props: DashboardViewProps) {
   const finishTimeoutRef = useRef<number | null>(null);
   const deleteTimeoutRef = useRef<number | null>(null);
+  const gradingModeMeta = getGradingModeMeta(props.gradingMode);
+  const priorityHelpText = props.gradingMode === 'newest-first'
+    ? 'Newest first keeps current and future work ahead of overdue work unless overdue items are all that is left.'
+    : 'Oldest first brings overdue work to the top first, then today, then future work.';
   const visibleSelectedCount = props.assignments.filter((assignment) => (
     props.selectedIds.includes(assignment.id)
   )).length;
@@ -114,13 +123,33 @@ export function DashboardView(props: DashboardViewProps) {
   return (
     <div className="view active" id="view-dashboard">
       <div className="dash-top">
-        <div className={`bulk-actions ${visibleSelectedCount ? 'show' : ''}`}>
-          <button className="action-pill finish" type="button" onClick={handleBulkFinish}>
-            <CheckIcon /> Mark Finished
-          </button>
-          <button className="action-pill del" type="button" onClick={handleBulkDelete}>
-            <CloseIcon /> Delete
-          </button>
+        <div className="dash-top-main">
+          <div className="priority-mode-panel">
+            <div className="priority-mode-copy">
+              <div className="priority-mode-label">Priority system</div>
+              <div className="priority-mode-title">{gradingModeMeta.label}</div>
+              <div className="priority-mode-note">{gradingModeMeta.description}</div>
+            </div>
+            <select
+              className="priority-mode-select"
+              value={props.gradingMode}
+              onChange={(event) => props.onGradingModeChange(event.target.value as GradingMode)}
+              aria-label="Priority system"
+            >
+              {GRADING_MODE_OPTIONS.map((option) => (
+                <option key={option.key} value={option.key}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className={`bulk-actions ${visibleSelectedCount ? 'show' : ''}`}>
+            <button className="action-pill finish" type="button" onClick={handleBulkFinish}>
+              <CheckIcon /> Mark Finished
+            </button>
+            <button className="action-pill del" type="button" onClick={handleBulkDelete}>
+              <CloseIcon /> Delete
+            </button>
+          </div>
         </div>
         <button
           className="add-btn"
@@ -150,7 +179,7 @@ export function DashboardView(props: DashboardViewProps) {
               <th>
                 Priority
                 <InfoTip
-                  text="Calculated from due date x difficulty. Red = urgent, yellow = soon, green = on track."
+                  text={priorityHelpText}
                   placement="bottom"
                 />
               </th>
@@ -167,7 +196,7 @@ export function DashboardView(props: DashboardViewProps) {
           </thead>
           <tbody>
             {props.assignments.map((assignment) => {
-              const priority = calcPriority(assignment);
+              const priority = props.priorities[assignment.id];
               const isPastDue = isPastDueDate(assignment.due);
               const isFinishing = finishingIds.has(assignment.id);
               const isDeleting = deletingIds.has(assignment.id);
@@ -190,7 +219,7 @@ export function DashboardView(props: DashboardViewProps) {
                     />
                   </td>
                   <td>
-                    <span className={`prio-badge prio-${priority.color}`}>{priority.score}</span>
+                    <span className={`prio-badge prio-${priority?.color || 'green'}`}>{priority?.score ?? '-'}</span>
                   </td>
                   <td style={{ fontWeight: 500 }}>{abbreviateClass(assignment.cls)}</td>
                   <td className="name-cell" title={assignment.name}>

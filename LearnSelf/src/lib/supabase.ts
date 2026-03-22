@@ -1,6 +1,18 @@
 import { createClient, type Session, type SupabaseClient, type User } from '@supabase/supabase-js';
-import { DEFAULT_USER_NAME, SUPABASE_STORAGE_KEY, SUPABASE_TABLE } from '../constants';
-import type { Assignment, AssignmentStatus, Difficulty, UserProfile } from '../types';
+import {
+  ASSIGNMENT_REPEAT_RULES_TABLE,
+  DEFAULT_USER_NAME,
+  SUPABASE_STORAGE_KEY,
+  SUPABASE_TABLE
+} from '../constants';
+import type {
+  Assignment,
+  AssignmentRepeatEvery,
+  AssignmentRepeatRulePayload,
+  AssignmentStatus,
+  Difficulty,
+  UserProfile
+} from '../types';
 
 interface LearnSelfConfig {
   supabaseUrl: string;
@@ -18,7 +30,18 @@ interface AssignmentRow {
   description: string | null;
   difficulty: Difficulty | null;
   status: AssignmentStatus | null;
+  repeat_enabled?: boolean | null;
+  repeat_every?: AssignmentRepeatEvery | null;
+  repeat_time?: string | null;
+  repeat_days_of_week?: number[] | null;
+  repeat_days_of_month?: number[] | null;
+  repeat_timezone?: string | null;
+  repeat_rule_id?: string | null;
   created_at?: string | null;
+}
+
+interface AssignmentRepeatRuleRow {
+  id: string;
 }
 
 let cachedClient: SupabaseClient | null = null;
@@ -103,12 +126,19 @@ export function mapAssignmentFromRow(row: AssignmentRow): Assignment {
     ad: row.assigned_date || '',
     due: row.due_date || '',
     desc: row.description || '',
-    status: row.status || 'active'
+    status: row.status || 'active',
+    repeatEnabled: Boolean(row.repeat_enabled),
+    repeatEvery: row.repeat_every || '',
+    repeatTime: row.repeat_time ? row.repeat_time.slice(0, 5) : '',
+    repeatDaysOfWeek: row.repeat_days_of_week || [],
+    repeatDaysOfMonth: row.repeat_days_of_month || [],
+    repeatTimezone: row.repeat_timezone || '',
+    repeatRuleId: row.repeat_rule_id || ''
   };
 }
 
 export function buildAssignmentPayload(assignment: Assignment, userId: string) {
-  return {
+  const payload: Record<string, unknown> = {
     user_id: userId,
     name: assignment.name,
     class_name: assignment.cls,
@@ -118,12 +148,49 @@ export function buildAssignmentPayload(assignment: Assignment, userId: string) {
     difficulty: assignment.difficulty,
     status: assignment.status
   };
+
+  if (
+    assignment.repeatEnabled
+    || assignment.repeatRuleId
+    || assignment.repeatEvery
+    || assignment.repeatTime
+    || assignment.repeatTimezone
+  ) {
+    payload.repeat_enabled = assignment.repeatEnabled;
+    payload.repeat_every = assignment.repeatEvery || null;
+    payload.repeat_time = assignment.repeatTime || null;
+    payload.repeat_days_of_week = assignment.repeatDaysOfWeek;
+    payload.repeat_days_of_month = assignment.repeatDaysOfMonth;
+    payload.repeat_timezone = assignment.repeatTimezone || null;
+    payload.repeat_rule_id = assignment.repeatRuleId || null;
+  }
+
+  return payload;
+}
+
+export function buildAssignmentRepeatRulePayload(rule: AssignmentRepeatRulePayload, userId: string) {
+  return {
+    user_id: userId,
+    name: rule.name,
+    class_name: rule.cls,
+    difficulty: rule.difficulty,
+    description: rule.desc || '',
+    repeat_every: rule.repeatEvery,
+    repeat_time: rule.repeatTime,
+    repeat_days_of_week: rule.repeatDaysOfWeek,
+    repeat_days_of_month: rule.repeatDaysOfMonth,
+    repeat_timezone: rule.repeatTimezone,
+    anchor_date: rule.anchorDate,
+    uses_assigned_date: rule.usesAssignedDate,
+    due_offset_days: rule.dueOffsetDays,
+    next_occurrence_on: rule.nextOccurrenceOn
+  };
 }
 
 export async function fetchAssignments(client: SupabaseClient, userId: string) {
   const { data, error } = await client
     .from(SUPABASE_TABLE)
-    .select('id, user_id, name, class_name, assigned_date, due_date, description, difficulty, status, created_at')
+    .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
 
@@ -135,11 +202,47 @@ export async function insertAssignment(client: SupabaseClient, assignment: Assig
   const { data, error } = await client
     .from(SUPABASE_TABLE)
     .insert(buildAssignmentPayload(assignment, userId))
-    .select('id, user_id, name, class_name, assigned_date, due_date, description, difficulty, status, created_at')
+    .select('*')
     .single();
 
   if (error) throw error;
   return mapAssignmentFromRow(data as AssignmentRow);
+}
+
+export async function insertAssignmentRepeatRule(
+  client: SupabaseClient,
+  rule: AssignmentRepeatRulePayload,
+  userId: string
+) {
+  const { data, error } = await client
+    .from(ASSIGNMENT_REPEAT_RULES_TABLE)
+    .insert(buildAssignmentRepeatRulePayload(rule, userId))
+    .select('id')
+    .single();
+
+  if (error) throw error;
+  return (data as AssignmentRepeatRuleRow).id;
+}
+
+export async function deleteAssignmentRepeatRule(client: SupabaseClient, ruleId: string) {
+  const { error } = await client.from(ASSIGNMENT_REPEAT_RULES_TABLE).delete().eq('id', ruleId);
+  if (error) throw error;
+}
+
+export async function syncRecurringAssignments(client: SupabaseClient) {
+  const { error } = await client.rpc('sync_recurring_assignments_for_current_user');
+  if (!error) return;
+
+  const message = error.message.toLowerCase();
+  if (
+    message.includes('does not exist')
+    || message.includes('could not find the function')
+    || message.includes('function public.sync_recurring_assignments_for_current_user() does not exist')
+  ) {
+    return;
+  }
+
+  throw error;
 }
 
 export async function updateAssignmentStatuses(

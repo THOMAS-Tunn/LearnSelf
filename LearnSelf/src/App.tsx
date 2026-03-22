@@ -87,18 +87,21 @@ function formatForgotPasswordError(error: unknown) {
   return message;
 }
 
+function isRecurringSetupError(error: unknown) {
+  const message = getErrorMessage(error, '').toLowerCase();
+  return (
+    message.includes('assignment_repeat_rules')
+    || message.includes('repeat_enabled')
+    || message.includes('repeat_every')
+    || message.includes('repeat_time')
+    || message.includes('repeat_rule')
+    || message.includes('sync_recurring_assignments_for_current_user')
+  );
+}
+
 function formatAssignmentError(error: unknown, fallback: string) {
   const message = getErrorMessage(error, fallback);
-  const normalized = message.toLowerCase();
-
-  if (
-    normalized.includes('assignment_repeat_rules')
-    || normalized.includes('repeat_enabled')
-    || normalized.includes('repeat_every')
-    || normalized.includes('repeat_time')
-    || normalized.includes('repeat_rule')
-    || normalized.includes('sync_recurring_assignments_for_current_user')
-  ) {
+  if (isRecurringSetupError(error)) {
     return 'Recurring assignments are not set up yet. Run the SQL in supabase/recurring_assignments.sql, then try again.';
   }
 
@@ -1337,6 +1340,7 @@ export default function App() {
     if (!validateAssignmentForm() || !client || !addForm.difficulty) return;
     setAddLoading(true);
     let repeatRuleId = '';
+    let repeatWasDowngraded = false;
 
     try {
       const { data: userData, error: userError } = await client.auth.getUser();
@@ -1350,7 +1354,15 @@ export default function App() {
       const repeatRulePayload = buildRepeatRulePayload();
 
       if (repeatRulePayload) {
-        repeatRuleId = await insertAssignmentRepeatRule(client, repeatRulePayload, userId);
+        try {
+          repeatRuleId = await insertAssignmentRepeatRule(client, repeatRulePayload, userId);
+        } catch (error) {
+          if (isRecurringSetupError(error)) {
+            repeatWasDowngraded = true;
+          } else {
+            throw error;
+          }
+        }
       }
 
       const saved = await insertAssignment(
@@ -1364,12 +1376,12 @@ export default function App() {
           due: addForm.due,
           desc: addForm.desc.trim(),
           status: 'active',
-          repeatEnabled: addForm.repeatEnabled,
-          repeatEvery: addForm.repeatEvery,
-          repeatTime: addForm.repeatTime,
-          repeatDaysOfWeek: addForm.repeatDaysOfWeek,
-          repeatDaysOfMonth: addForm.repeatDaysOfMonth,
-          repeatTimezone: addForm.repeatTimezone,
+          repeatEnabled: repeatWasDowngraded ? false : addForm.repeatEnabled,
+          repeatEvery: repeatWasDowngraded ? '' : addForm.repeatEvery,
+          repeatTime: repeatWasDowngraded ? '' : addForm.repeatTime,
+          repeatDaysOfWeek: repeatWasDowngraded ? [] : addForm.repeatDaysOfWeek,
+          repeatDaysOfMonth: repeatWasDowngraded ? [] : addForm.repeatDaysOfMonth,
+          repeatTimezone: repeatWasDowngraded ? '' : addForm.repeatTimezone,
           repeatRuleId
         },
         userId
@@ -1379,6 +1391,12 @@ export default function App() {
       setAddModalOpen(false);
       setAddForm(createEmptyAssignmentForm());
       setAddFormErrors({});
+      if (repeatWasDowngraded) {
+        setLoginStatus({
+          tone: 'info',
+          text: 'Assignment saved, but repeat scheduling is not enabled in your database yet. Run supabase/recurring_assignments.sql to enable repeats.'
+        });
+      }
     } catch (error) {
       if (repeatRuleId) {
         try {

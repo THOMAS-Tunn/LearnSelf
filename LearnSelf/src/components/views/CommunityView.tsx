@@ -229,6 +229,65 @@ function SendIcon() {
   );
 }
 
+function HamburgerIcon({ open }: { open: boolean }) {
+  const transition = 'transform 0.28s cubic-bezier(.4,0,.2,1), opacity 0.2s ease';
+
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 18 18"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: 'block', overflow: 'visible' }}
+    >
+      <line
+        x1="2"
+        y1="4.5"
+        x2="16"
+        y2="4.5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        style={{
+          transformOrigin: '9px 4.5px',
+          transition: 'transform 0.28s cubic-bezier(.4,0,.2,1)',
+          transform: open ? 'rotate(45deg) translate(3.2px, 3.2px)' : 'none'
+        }}
+      />
+      <line
+        x1="2"
+        y1="9"
+        x2="16"
+        y2="9"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        style={{
+          transformOrigin: '9px 9px',
+          transition,
+          opacity: open ? 0 : 1,
+          transform: open ? 'scaleX(0)' : 'none'
+        }}
+      />
+      <line
+        x1="2"
+        y1="13.5"
+        x2="16"
+        y2="13.5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        style={{
+          transformOrigin: '9px 13.5px',
+          transition: 'transform 0.28s cubic-bezier(.4,0,.2,1)',
+          transform: open ? 'rotate(-45deg) translate(3.2px, -3.2px)' : 'none'
+        }}
+      />
+    </svg>
+  );
+}
+
 function LikeButton({
   liked,
   count,
@@ -440,6 +499,10 @@ export function CommunityView(props: CommunityViewProps) {
   const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [drawerAnimating, setDrawerAnimating] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth >= 900
+  );
+  const [backdropVisible, setBackdropVisible] = useState(false);
 
   useEffect(() => () => {
     if (closeDrawerTimeoutRef.current) {
@@ -501,8 +564,32 @@ export function CommunityView(props: CommunityViewProps) {
     }, 340);
   }
 
-  const titleLen = props.postValues.title.length;
-  const bodyLen = props.postValues.body.length;
+  function isMobileBreakpoint() {
+    return typeof window !== 'undefined' && window.innerWidth < 900;
+  }
+
+  function toggleSidebar() {
+    if (!sidebarOpen) {
+      setSidebarOpen(true);
+      if (isMobileBreakpoint()) {
+        setBackdropVisible(true);
+      }
+      return;
+    }
+
+    setSidebarOpen(false);
+    setBackdropVisible(false);
+  }
+
+  function handleSectionChange(section: CommunityFeedSection) {
+    props.onSectionChange(section);
+    if (isMobileBreakpoint()) {
+      setSidebarOpen(false);
+      setBackdropVisible(false);
+    }
+  }
+
+  const activeLabel = COMMUNITY_SECTIONS.find((section) => section.key === props.activeSection)?.label ?? 'Posts';
 
   return (
     <div className="view active" id="view-community">
@@ -528,23 +615,44 @@ export function CommunityView(props: CommunityViewProps) {
         />
       ) : null}
 
+      {backdropVisible ? (
+        <div
+          className={`comm-mobile-backdrop ${sidebarOpen ? 'comm-mobile-backdrop--in' : 'comm-mobile-backdrop--out'}`}
+          onClick={() => {
+            setSidebarOpen(false);
+            setBackdropVisible(false);
+          }}
+          aria-hidden="true"
+        />
+      ) : null}
+
       <div className="community-layout">
-        <aside className="community-sidebar">
+        <aside
+          className={`community-sidebar comm-sidebar-panel${sidebarOpen ? '' : ' comm-sidebar-collapsed'}`}
+          aria-label="Community filters"
+          aria-hidden={!sidebarOpen}
+        >
           <div className="community-sidebar-head">
             <div className="view-title" style={{ fontSize: 18, marginBottom: 0 }}>Community</div>
             <InfoTip text="Filter posts by category. Pinned posts float to the top." placement="right" />
           </div>
           <div className="view-sub" style={{ marginBottom: 14, marginTop: 4, fontSize: 12.5 }}>
-            Your feed, filtered your way.
+            Your feed, your way.
           </div>
 
           <div className="community-section-list">
-            {COMMUNITY_SECTIONS.map((section) => (
+            {COMMUNITY_SECTIONS.map((section, index) => (
               <button
                 key={section.key}
                 className={`community-section-btn ${props.activeSection === section.key ? 'active' : ''}`}
                 type="button"
-                onClick={() => props.onSectionChange(section.key)}
+                tabIndex={sidebarOpen ? 0 : -1}
+                onClick={() => handleSectionChange(section.key)}
+                style={{
+                  opacity: sidebarOpen ? 1 : 0,
+                  transform: sidebarOpen ? 'translateX(0)' : 'translateX(-10px)',
+                  transition: `opacity 0.2s ease ${sidebarOpen ? index * 28 : 0}ms, transform 0.22s ease ${sidebarOpen ? index * 28 : 0}ms, background 0.15s, color 0.15s`
+                }}
               >
                 {section.label}
               </button>
@@ -558,6 +666,7 @@ export function CommunityView(props: CommunityViewProps) {
             disabled={props.loading}
             aria-label="Refresh feed"
             title="Refresh feed"
+            tabIndex={sidebarOpen ? 0 : -1}
             style={{ marginTop: 18 }}
           >
             <RefreshIcon />
@@ -565,6 +674,32 @@ export function CommunityView(props: CommunityViewProps) {
         </aside>
 
         <section className="community-feed-column">
+          <div className="comm-feed-topbar">
+            <button
+              className={`comm-sidebar-toggle${sidebarOpen ? ' is-open' : ''}`}
+              type="button"
+              aria-label={sidebarOpen ? 'Close filter menu' : 'Open filter menu'}
+              aria-expanded={sidebarOpen}
+              onClick={toggleSidebar}
+            >
+              <HamburgerIcon open={sidebarOpen} />
+            </button>
+            <span className="comm-feed-label">{activeLabel}</span>
+            <button
+              className="community-refresh-btn"
+              type="button"
+              onClick={props.onRefresh}
+              disabled={props.loading}
+              aria-label="Refresh feed"
+            >
+              <RefreshIcon />
+            </button>
+          </div>
+
+          {props.status?.text ? (
+            <div className={`status-banner ${props.status.tone}`}>{props.status.text}</div>
+          ) : null}
+
           {props.loading && !props.posts.length ? (
             <div className="community-empty-card">
               <div className="community-empty-title">Loading posts...</div>
@@ -600,7 +735,7 @@ export function CommunityView(props: CommunityViewProps) {
                       <div className="community-post-title">{post.title}</div>
                       <div className="community-post-meta" title={new Date(post.createdAt).toLocaleString()}>
                         <span className="community-post-meta-author">{post.authorName}</span>
-                        <span className="community-post-meta-sep">.</span>
+                        <span className="community-post-meta-sep">&middot;</span>
                         <span>{getCommunityRelativeTime(post.createdAt)}</span>
                       </div>
                     </div>
@@ -798,82 +933,6 @@ export function CommunityView(props: CommunityViewProps) {
             );
           })}
         </section>
-
-        <aside className="community-compose-card">
-          {props.status?.text ? (
-            <div className={`status-banner ${props.status.tone}`} style={{ marginBottom: 18 }}>
-              {props.status.text}
-            </div>
-          ) : null}
-
-          <div className="community-compose-top">
-            <div className="view-title" style={{ fontSize: 17, marginBottom: 0 }}>New Post</div>
-            <button
-              className="community-refresh-btn"
-              type="button"
-              onClick={props.onRefresh}
-              disabled={props.loading}
-              aria-label="Refresh feed"
-              title="Refresh feed"
-            >
-              <RefreshIcon />
-            </button>
-          </div>
-          <div className="view-sub" style={{ marginBottom: 18, fontSize: 12.5, marginTop: 4 }}>
-            Share what you need help with.
-          </div>
-
-          <div className="compose-form">
-            <div className="compose-field">
-              <div className="compose-label-row">
-                <label className="modal-label" htmlFor="community-title">
-                  Title
-                  <InfoTip text="3-120 characters." placement="top" />
-                </label>
-                <span className={`compose-char-count ${titleLen > 110 ? 'warn' : ''}`}>{titleLen}/120</span>
-              </div>
-              <input
-                id="community-title"
-                className="modal-input"
-                type="text"
-                maxLength={120}
-                placeholder="Need help with algebra homework"
-                value={props.postValues.title}
-                onChange={(event) => props.onPostChange('title', event.target.value)}
-              />
-              {props.postErrors.title ? (
-                <div className="field-error">{props.postErrors.title}</div>
-              ) : null}
-            </div>
-
-            <div className="compose-field">
-              <div className="compose-label-row">
-                <label className="modal-label" htmlFor="community-body">Details</label>
-                <span className={`compose-char-count ${bodyLen > 3800 ? 'warn' : ''}`}>{bodyLen}/4000</span>
-              </div>
-              <textarea
-                id="community-body"
-                className="modal-textarea community-post-textarea"
-                rows={6}
-                maxLength={4000}
-                placeholder="Explain where you're stuck..."
-                value={props.postValues.body}
-                onChange={(event) => props.onPostChange('body', event.target.value)}
-              />
-              {props.postErrors.body ? <div className="field-error">{props.postErrors.body}</div> : null}
-            </div>
-
-            <button
-              className={`compose-submit-btn ${props.posting ? 'btn-loading' : ''}`}
-              type="button"
-              onClick={props.onPostSubmit}
-              disabled={props.posting}
-            >
-              <SendIcon />
-              <span>{props.posting ? 'Posting...' : 'Post'}</span>
-            </button>
-          </div>
-        </aside>
       </div>
     </div>
   );

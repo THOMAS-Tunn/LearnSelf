@@ -1145,12 +1145,16 @@ export default function App() {
     setLoginStatus(null);
 
     try {
-      const { error } = await client.auth.signInWithPassword({
+      const { data, error } = await client.auth.signInWithPassword({
         email: loginEmail.trim(),
         password: loginPassword.trim()
       });
 
       if (error) throw error;
+
+      if (data.user) {
+        scheduleSessionHydration(client, data.user.id, mapUser(data.user));
+      }
     } catch (error) {
       const message = getErrorMessage(error, 'Unable to log in.');
       setLoginStatus({ tone: 'error', text: message });

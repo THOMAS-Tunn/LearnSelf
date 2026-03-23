@@ -17,6 +17,7 @@ import { SettingsView } from './components/views/SettingsView';
 import {
   buildAssignmentPriorityState,
   createEmptyAssignmentForm,
+  getDueTimeOrDefault,
   getInitialGradingMode,
   getInitialUser,
   getNextRepeatOccurrence,
@@ -96,10 +97,11 @@ function formatAssignmentError(error: unknown, fallback: string) {
     || normalized.includes('repeat_enabled')
     || normalized.includes('repeat_every')
     || normalized.includes('repeat_time')
+    || normalized.includes('due_time')
     || normalized.includes('repeat_rule')
     || normalized.includes('sync_recurring_assignments_for_current_user')
   ) {
-    return 'Recurring assignments are not set up yet. Run the SQL in supabase/recurring_assignments.sql, then try again.';
+    return 'The assignment due-time and recurring schema are not set up yet. Run the SQL in supabase/recurring_assignments.sql, then try again.';
   }
 
   return message;
@@ -342,6 +344,12 @@ export default function App() {
     )));
   }
 
+  function applyAssignmentCollections(allAssignments: Assignment[]) {
+    setAssignments(allAssignments.filter((item) => item.status === 'active'));
+    setFinished(allAssignments.filter((item) => item.status === 'finished'));
+    setTrash(allAssignments.filter((item) => item.status === 'trashed'));
+  }
+
   useEffect(() => {
     let isDisposed = false;
     const { client: supabaseClient, config } = createSupabaseBrowserClient();
@@ -478,9 +486,7 @@ export default function App() {
       const allAssignments = await fetchAssignments(activeClient, userId);
       if (requestId !== sessionLoadRequestRef.current) return;
 
-      setAssignments(allAssignments.filter((item) => item.status === 'active'));
-      setFinished(allAssignments.filter((item) => item.status === 'finished'));
-      setTrash(allAssignments.filter((item) => item.status === 'trashed'));
+      applyAssignmentCollections(allAssignments);
       setActiveView('dashboard');
       setSelectedIds([]);
     } catch (error) {
@@ -495,9 +501,7 @@ export default function App() {
       hydratedSessionKeyRef.current = '';
       const message = formatAssignmentError(error, 'Unable to load assignments.');
       setLoginStatus({ tone: 'error', text: `Signed in, but loading assignments failed: ${message}` });
-      setAssignments([]);
-      setFinished([]);
-      setTrash([]);
+      applyAssignmentCollections([]);
     }
   }
 
@@ -565,6 +569,10 @@ export default function App() {
         [field]: value
       } as AssignmentFormValues;
 
+      if (field === 'dueTime') {
+        next.repeatTime = getDueTimeOrDefault(value as string);
+      }
+
       if (field === 'repeatEnabled' && !value) {
         next.repeatEvery = '';
         next.repeatDaysOfWeek = [];
@@ -588,6 +596,14 @@ export default function App() {
         next.repeatDaysOfMonth = [...new Set(value as number[])].sort((left, right) => left - right);
       }
 
+      if (field === 'repeatEnabled' && value) {
+        next.repeatTime = getDueTimeOrDefault(next.dueTime);
+      }
+
+      if (field === 'due') {
+        next.repeatTime = getDueTimeOrDefault(next.dueTime);
+      }
+
       return next;
     });
 
@@ -595,10 +611,10 @@ export default function App() {
       ...current,
       [field]: undefined,
       ...(field === 'repeatEnabled' || field === 'repeatEvery'
-        ? { repeatEvery: undefined, repeatTime: undefined, repeatDaysOfWeek: undefined, repeatDaysOfMonth: undefined }
+        ? { repeatEvery: undefined, repeatDaysOfWeek: undefined, repeatDaysOfMonth: undefined }
         : {}),
-      ...(field === 'ad' || field === 'due'
-        ? { due: undefined, repeatDaysOfWeek: undefined, repeatDaysOfMonth: undefined }
+      ...(field === 'ad' || field === 'due' || field === 'dueTime'
+        ? { due: undefined, dueTime: undefined, repeatDaysOfWeek: undefined, repeatDaysOfMonth: undefined }
         : {})
     }));
   }
@@ -625,6 +641,9 @@ export default function App() {
     if (!addForm.name.trim()) nextErrors.name = 'Name is required.';
     if (!addForm.difficulty) nextErrors.difficulty = 'Difficulty is required.';
     if (!addForm.due) nextErrors.due = 'Due date is required.';
+    if (addForm.dueTime.trim() && !/^\d{2}:\d{2}$/.test(addForm.dueTime.trim())) {
+      nextErrors.dueTime = 'Choose a valid due time.';
+    }
 
     const assignedDate = addForm.ad ? new Date(`${addForm.ad}T00:00:00`) : null;
     const dueDate = addForm.due ? new Date(`${addForm.due}T00:00:00`) : null;
@@ -642,10 +661,6 @@ export default function App() {
     if (addForm.repeatEnabled) {
       if (!addForm.repeatEvery) {
         nextErrors.repeatEvery = 'Choose how this assignment should repeat.';
-      }
-
-      if (!/^\d{2}:\d{2}$/.test(addForm.repeatTime.trim())) {
-        nextErrors.repeatTime = 'Choose a valid repeat time.';
       }
 
       const anchorDate = getRepeatAnchorDate(addForm);
@@ -695,7 +710,7 @@ export default function App() {
       difficulty: addForm.difficulty,
       desc: addForm.desc.trim(),
       repeatEvery: addForm.repeatEvery,
-      repeatTime: addForm.repeatTime,
+      repeatTime: getDueTimeOrDefault(addForm.dueTime),
       repeatDaysOfWeek: addForm.repeatDaysOfWeek,
       repeatDaysOfMonth: addForm.repeatDaysOfMonth,
       repeatTimezone: addForm.repeatTimezone,
@@ -1356,11 +1371,12 @@ export default function App() {
           difficulty: addForm.difficulty,
           ad: addForm.ad,
           due: addForm.due,
+          dueTime: getDueTimeOrDefault(addForm.dueTime),
           desc: addForm.desc.trim(),
           status: 'active',
           repeatEnabled: addForm.repeatEnabled,
           repeatEvery: addForm.repeatEvery,
-          repeatTime: addForm.repeatTime,
+          repeatTime: getDueTimeOrDefault(addForm.dueTime),
           repeatDaysOfWeek: addForm.repeatDaysOfWeek,
           repeatDaysOfMonth: addForm.repeatDaysOfMonth,
           repeatTimezone: addForm.repeatTimezone,
@@ -1369,7 +1385,13 @@ export default function App() {
         userId
       );
 
-      setAssignments((current) => [...current, saved]);
+      if (repeatRulePayload) {
+        await syncRecurringAssignments(client);
+        applyAssignmentCollections(await fetchAssignments(client, userId));
+      } else {
+        setAssignments((current) => [...current, saved]);
+      }
+
       setAddModalOpen(false);
       setAddForm(createEmptyAssignmentForm());
       setAddFormErrors({});

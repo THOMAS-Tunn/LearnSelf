@@ -81,6 +81,19 @@ export function AddAssignmentModal(props: AddAssignmentModalProps) {
         </div>
 
         <div className="modal-field">
+          <label className="modal-label" htmlFor="f-due-time">Due Time</label>
+          <input
+            className="modal-input"
+            id="f-due-time"
+            type="time"
+            value={props.values.dueTime}
+            onChange={(event) => props.onChange('dueTime', event.target.value)}
+          />
+          <div className="field-note">Optional. If you leave this empty, LearnSelf will use 12:00 AM.</div>
+          {props.errors.dueTime ? <div className="field-error show">{props.errors.dueTime}</div> : null}
+        </div>
+
+        <div className="modal-field">
           <label className="modal-label" htmlFor="f-desc">Description</label>
           <textarea className="modal-textarea" id="f-desc" placeholder="Optional notes about this assignment..." value={props.values.desc} onChange={(e) => props.onChange('desc', e.target.value)} />
         </div>
@@ -102,34 +115,20 @@ export function AddAssignmentModal(props: AddAssignmentModalProps) {
 
           {props.values.repeatEnabled ? (
             <div className="repeat-builder">
-              <div className="modal-row">
-                <div className="modal-field">
-                  <label className="modal-label" htmlFor="f-repeat-every">Every *</label>
-                  <select
-                    className="modal-select"
-                    id="f-repeat-every"
-                    value={props.values.repeatEvery}
-                    onChange={(event) => props.onChange('repeatEvery', event.target.value as AssignmentFormValues['repeatEvery'])}
-                  >
-                    <option value="">- Select -</option>
-                    {REPEAT_EVERY_OPTIONS.map((option) => (
-                      <option key={option.key} value={option.key}>{option.label}</option>
-                    ))}
-                  </select>
-                  {props.errors.repeatEvery ? <div className="field-error show">{props.errors.repeatEvery}</div> : null}
-                </div>
-
-                <div className="modal-field">
-                  <label className="modal-label" htmlFor="f-repeat-time">Time *</label>
-                  <input
-                    className="modal-input"
-                    id="f-repeat-time"
-                    type="time"
-                    value={props.values.repeatTime}
-                    onChange={(event) => props.onChange('repeatTime', event.target.value)}
-                  />
-                  {props.errors.repeatTime ? <div className="field-error show">{props.errors.repeatTime}</div> : null}
-                </div>
+              <div className="modal-field">
+                <label className="modal-label" htmlFor="f-repeat-every">Every *</label>
+                <select
+                  className="modal-select"
+                  id="f-repeat-every"
+                  value={props.values.repeatEvery}
+                  onChange={(event) => props.onChange('repeatEvery', event.target.value as AssignmentFormValues['repeatEvery'])}
+                >
+                  <option value="">- Select -</option>
+                  {REPEAT_EVERY_OPTIONS.map((option) => (
+                    <option key={option.key} value={option.key}>{option.label}</option>
+                  ))}
+                </select>
+                {props.errors.repeatEvery ? <div className="field-error show">{props.errors.repeatEvery}</div> : null}
               </div>
 
               {props.values.repeatEvery === 'days-of-week' ? (
@@ -178,7 +177,7 @@ export function AddAssignmentModal(props: AddAssignmentModalProps) {
 
               <div className="repeat-summary">
                 <div className="repeat-summary-line">{formatRepeatSummary(props.values)}</div>
-                <div className="repeat-summary-sub">Runs in {props.values.repeatTimezone || 'your local timezone'} and can keep generating while you are offline.</div>
+                <div className="repeat-summary-sub">Runs in {props.values.repeatTimezone || 'your local timezone'} and only fills up to 1 month ahead to keep the app fast.</div>
               </div>
             </div>
           ) : null}

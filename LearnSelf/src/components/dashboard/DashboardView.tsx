@@ -3,6 +3,7 @@ import { GRADING_MODE_OPTIONS } from '../../constants';
 import {
   abbreviateClass,
   formatDate,
+  formatDueDateTime,
   getDifficultyClassName,
   getGradingModeMeta,
   isPastDueDate,
@@ -64,9 +65,11 @@ export function DashboardView(props: DashboardViewProps) {
   const finishTimeoutRef = useRef<number | null>(null);
   const deleteTimeoutRef = useRef<number | null>(null);
   const gradingModeMeta = getGradingModeMeta(props.gradingMode);
-  const priorityHelpText = props.gradingMode === 'newest-first'
-    ? 'Newest first keeps current and future work ahead of overdue work unless overdue items are all that is left.'
-    : 'Oldest first brings overdue work to the top first, then today, then future work.';
+  const priorityHelpText = props.gradingMode === 'logic-beta'
+    ? 'Logic (Beta!) groups work into overdue, today, next 7 days, and later, then applies the existence-check difficulty system from your new grading flow.'
+    : props.gradingMode === 'newest-first'
+      ? 'Newest keeps today and upcoming work ahead of older overdue backlog, then sorts by the closest due date and time.'
+      : 'Oldest brings the oldest overdue work to the top first, then today, then the rest by due date and time.';
   const visibleSelectedCount = props.assignments.filter((assignment) => (
     props.selectedIds.includes(assignment.id)
   )).length;
@@ -189,7 +192,7 @@ export function DashboardView(props: DashboardViewProps) {
               <th>AD</th>
               <th>
                 Due
-                <InfoTip text="Due date. Click any row to see full details." placement="bottom" />
+                <InfoTip text="Due date and time. Click any row to see full details." placement="bottom" />
               </th>
               <th>Difficulty</th>
             </tr>
@@ -197,7 +200,7 @@ export function DashboardView(props: DashboardViewProps) {
           <tbody>
             {props.assignments.map((assignment) => {
               const priority = props.priorities[assignment.id];
-              const isPastDue = isPastDueDate(assignment.due);
+              const isPastDue = isPastDueDate(assignment.due, assignment.dueTime);
               const isFinishing = finishingIds.has(assignment.id);
               const isDeleting = deletingIds.has(assignment.id);
 
@@ -229,7 +232,7 @@ export function DashboardView(props: DashboardViewProps) {
                     {assignment.desc || '-'}
                   </td>
                   <td>{formatDate(assignment.ad)}</td>
-                  <td className={`due-cell ${isPastDue ? 'is-overdue' : ''}`}>{formatDate(assignment.due)}</td>
+                  <td className={`due-cell ${isPastDue ? 'is-overdue' : ''}`}>{formatDueDateTime(assignment.due, assignment.dueTime)}</td>
                   <td>
                     <span className={`diff-badge ${getDifficultyClassName(assignment.difficulty)}`}>
                       {assignment.difficulty}

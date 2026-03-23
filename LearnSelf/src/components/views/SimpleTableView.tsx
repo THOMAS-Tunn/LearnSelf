@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { abbreviateClass, formatDate, getDifficultyClassName, isPastDueDate } from '../../lib/assignment';
+import { abbreviateClass, formatDueDateTime, getDifficultyClassName, isPastDueDate } from '../../lib/assignment';
 import type { Assignment } from '../../types';
 
 interface SimpleTableViewProps {
@@ -96,7 +96,7 @@ export function SimpleTableView(props: SimpleTableViewProps) {
             </thead>
             <tbody>
               {props.assignments.map((assignment) => {
-                const isPastDue = isPastDueDate(assignment.due);
+                const isPastDue = isPastDueDate(assignment.due, assignment.dueTime);
 
                 return (
                   <tr
@@ -115,7 +115,7 @@ export function SimpleTableView(props: SimpleTableViewProps) {
                     ) : null}
                     <td>{abbreviateClass(assignment.cls)}</td>
                     <td>{assignment.name}</td>
-                    <td className={`due-cell ${isPastDue ? 'is-overdue' : ''}`}>{formatDate(assignment.due)}</td>
+                    <td className={`due-cell ${isPastDue ? 'is-overdue' : ''}`}>{formatDueDateTime(assignment.due, assignment.dueTime)}</td>
                     {props.showDifficulty ? (
                       <td>
                         <span className={`diff-badge ${getDifficultyClassName(assignment.difficulty)}`}>

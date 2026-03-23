@@ -5,6 +5,7 @@ import {
   SUPABASE_STORAGE_KEY,
   SUPABASE_TABLE
 } from '../constants';
+import { getDueTimeOrDefault } from './assignment';
 import type {
   Assignment,
   AssignmentRepeatEvery,
@@ -27,6 +28,7 @@ interface AssignmentRow {
   class_name: string | null;
   assigned_date: string | null;
   due_date: string | null;
+  due_time?: string | null;
   description: string | null;
   difficulty: Difficulty | null;
   status: AssignmentStatus | null;
@@ -125,11 +127,12 @@ export function mapAssignmentFromRow(row: AssignmentRow): Assignment {
     difficulty: row.difficulty || 'Easy',
     ad: row.assigned_date || '',
     due: row.due_date || '',
+    dueTime: row.due_time ? row.due_time.slice(0, 5) : '00:00',
     desc: row.description || '',
     status: row.status || 'active',
     repeatEnabled: Boolean(row.repeat_enabled),
     repeatEvery: row.repeat_every || '',
-    repeatTime: row.repeat_time ? row.repeat_time.slice(0, 5) : '',
+    repeatTime: row.repeat_time?.slice(0, 5) || row.due_time?.slice(0, 5) || '00:00',
     repeatDaysOfWeek: row.repeat_days_of_week || [],
     repeatDaysOfMonth: row.repeat_days_of_month || [],
     repeatTimezone: row.repeat_timezone || '',
@@ -144,6 +147,7 @@ export function buildAssignmentPayload(assignment: Assignment, userId: string) {
     class_name: assignment.cls,
     assigned_date: assignment.ad || null,
     due_date: assignment.due || null,
+    due_time: getDueTimeOrDefault(assignment.dueTime),
     description: assignment.desc || '',
     difficulty: assignment.difficulty,
     status: assignment.status
@@ -158,7 +162,7 @@ export function buildAssignmentPayload(assignment: Assignment, userId: string) {
   ) {
     payload.repeat_enabled = assignment.repeatEnabled;
     payload.repeat_every = assignment.repeatEvery || null;
-    payload.repeat_time = assignment.repeatTime || null;
+    payload.repeat_time = getDueTimeOrDefault(assignment.repeatTime || assignment.dueTime) || null;
     payload.repeat_days_of_week = assignment.repeatDaysOfWeek;
     payload.repeat_days_of_month = assignment.repeatDaysOfMonth;
     payload.repeat_timezone = assignment.repeatTimezone || null;

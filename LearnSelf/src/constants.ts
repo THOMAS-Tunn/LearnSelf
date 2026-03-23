@@ -48,13 +48,18 @@ export const COMMUNITY_COMMENT_SORT_OPTIONS: Array<{ key: CommunityCommentSort; 
 export const GRADING_MODE_OPTIONS: Array<{ key: GradingMode; label: string; description: string }> = [
   {
     key: 'newest-first',
-    label: 'Newest first',
-    description: 'Current and upcoming work stays ahead of overdue items unless overdue is all that is left.'
+    label: 'Newest',
+    description: 'Keeps today and upcoming work ahead of older backlog, then sorts by the closest due date and time.'
   },
   {
     key: 'oldest-first',
-    label: 'Oldest first',
-    description: 'Overdue work rises to the top first, then today, then future work.'
+    label: 'Oldest',
+    description: 'Pushes the oldest overdue work first, then today, then the rest in due-date order.'
+  },
+  {
+    key: 'logic-beta',
+    label: 'Logic (Beta!)',
+    description: 'Uses the new past/today/future priority logic with the difficulty existence check system.'
   }
 ];
 

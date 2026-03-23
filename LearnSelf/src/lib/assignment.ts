@@ -13,12 +13,17 @@ import type {
   UserProfile
 } from '../types';
 
-type AssignmentBucket = 'overdue' | 'today' | 'future';
+type AssignmentBucket = 'overdue' | 'today' | 'future-near' | 'future-far';
 type PriorityColor = 'red' | 'yellow' | 'green';
 
 export interface AssignmentPriority {
   score: number;
   color: PriorityColor;
+}
+
+interface AssignmentPriorityState {
+  priorities: Record<string, AssignmentPriority>;
+  sortedAssignments: Assignment[];
 }
 
 interface RepeatScheduleSource {
@@ -68,6 +73,22 @@ function normalizeTime(time: string) {
   return /^\d{2}:\d{2}(:\d{2})?$/.test(normalized) ? normalized.slice(0, 5) : '';
 }
 
+export function getDueTimeOrDefault(time: string) {
+  return normalizeTime(time) || '00:00';
+}
+
+function parseDueDateTime(dateIso: string, time = '00:00') {
+  const date = parseAssignmentDate(dateIso);
+  if (!date) {
+    return null;
+  }
+
+  const [hours, minutes] = getDueTimeOrDefault(time).split(':').map(Number);
+  const due = new Date(date);
+  due.setHours(hours || 0, minutes || 0, 0, 0);
+  return due;
+}
+
 function getTodayStart() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -80,75 +101,196 @@ function getDaysUntilDue(iso: string) {
   return Math.round((due.getTime() - getTodayStart().getTime()) / MILLISECONDS_PER_DAY);
 }
 
-function getAssignmentBucket(assignment: Pick<Assignment, 'due'>): AssignmentBucket {
-  const days = getDaysUntilDue(assignment.due);
-  if (days < 0) return 'overdue';
-  if (days === 0) return 'today';
-  return 'future';
+function getDueTimestamp(assignment: Pick<Assignment, 'due' | 'dueTime'>) {
+  return parseDueDateTime(assignment.due, assignment.dueTime)?.getTime() ?? Number.MAX_SAFE_INTEGER;
 }
 
-function getPriorityColor(assignment: Pick<Assignment, 'due'>): PriorityColor {
-  const days = getDaysUntilDue(assignment.due);
-  if (days <= 0) return 'red';
-  if (days <= 3) return 'yellow';
+function getAssignmentBucket(assignment: Pick<Assignment, 'due' | 'dueTime'>): AssignmentBucket {
+  const dueDate = parseAssignmentDate(assignment.due);
+  if (!dueDate) return 'future-far';
+
+  const dueDateTime = parseDueDateTime(assignment.due, assignment.dueTime);
+  const now = new Date();
+  if (dueDateTime && dueDateTime.getTime() < now.getTime()) {
+    return 'overdue';
+  }
+
+  const today = getTodayStart();
+  const tomorrow = addDays(today, 1);
+  if (dueDate.getTime() < tomorrow.getTime()) {
+    return 'today';
+  }
+
+  return getDaysUntilDue(assignment.due) <= 7 ? 'future-near' : 'future-far';
+}
+
+function getPriorityColor(assignment: Pick<Assignment, 'due' | 'dueTime'>): PriorityColor {
+  const bucket = getAssignmentBucket(assignment);
+  if (bucket === 'overdue' || bucket === 'today') return 'red';
+  if (bucket === 'future-near') return 'yellow';
   return 'green';
 }
 
-function getDifficultyOffset(difficulty: Difficulty, easyFirst = false) {
-  if (easyFirst) {
-    const easyFirstOffsets: Record<Difficulty, number> = {
-      Easy: 0,
-      Medium: 1,
-      Hard: 2,
-      Group: 3
-    };
-    return easyFirstOffsets[difficulty];
-  }
-
-  const defaultOffsets: Record<Difficulty, number> = {
+function getDifficultyTieWeight(difficulty: Difficulty) {
+  const weights: Record<Difficulty, number> = {
     Group: 0,
     Hard: 1,
     Medium: 2,
     Easy: 3
   };
-  return defaultOffsets[difficulty];
+  return weights[difficulty];
 }
 
-function getNewestFirstScore(
-  assignment: Assignment,
-  buckets: Record<AssignmentBucket, number>
-) {
-  const hasCurrentOrFutureWork = buckets.today > 0 || buckets.future > 0;
-  const bucket = getAssignmentBucket(assignment);
-
-  if (!hasCurrentOrFutureWork) {
-    return getDifficultyOffset(assignment.difficulty, true) + 1;
-  }
-
-  if (bucket === 'today') {
-    return getDifficultyOffset(assignment.difficulty) + 1;
-  }
-
-  if (bucket === 'future') {
-    return getDifficultyOffset(assignment.difficulty) + 5;
-  }
-
-  return getDifficultyOffset(assignment.difficulty) + 9;
+function getExistenceDifficultyRank(difficulty: Difficulty) {
+  const ranks: Record<Difficulty, number> = {
+    Easy: 1,
+    Medium: 2,
+    Hard: 3,
+    Group: 3
+  };
+  return ranks[difficulty];
 }
 
-function getOldestFirstScore(
-  assignment: Assignment,
-  buckets: Record<AssignmentBucket, number>
-) {
-  const bucket = getAssignmentBucket(assignment);
-  const orderedBuckets: AssignmentBucket[] = [];
+function getBucketOrder(bucket: AssignmentBucket, mode: GradingMode) {
+  if (mode === 'newest-first') {
+    const newestOrder: Record<AssignmentBucket, number> = {
+      today: 0,
+      'future-near': 1,
+      'future-far': 2,
+      overdue: 3
+    };
+    return newestOrder[bucket];
+  }
 
-  if (buckets.overdue > 0) orderedBuckets.push('overdue');
-  if (buckets.today > 0) orderedBuckets.push('today');
-  if (buckets.future > 0) orderedBuckets.push('future');
+  const defaultOrder: Record<AssignmentBucket, number> = {
+    overdue: 0,
+    today: 1,
+    'future-near': 2,
+    'future-far': 3
+  };
+  return defaultOrder[bucket];
+}
 
-  const bucketIndex = Math.max(0, orderedBuckets.indexOf(bucket));
-  return bucketIndex * 4 + getDifficultyOffset(assignment.difficulty) + 1;
+function compareByName(left: Assignment, right: Assignment) {
+  return left.name.localeCompare(right.name);
+}
+
+function compareByDifficulty(left: Assignment, right: Assignment) {
+  return getDifficultyTieWeight(left.difficulty) - getDifficultyTieWeight(right.difficulty);
+}
+
+function compareNewestFirst(left: Assignment, right: Assignment) {
+  const leftBucket = getAssignmentBucket(left);
+  const rightBucket = getAssignmentBucket(right);
+  const bucketDelta = getBucketOrder(leftBucket, 'newest-first') - getBucketOrder(rightBucket, 'newest-first');
+  if (bucketDelta !== 0) {
+    return bucketDelta;
+  }
+
+  const leftDue = getDueTimestamp(left);
+  const rightDue = getDueTimestamp(right);
+  if (leftDue !== rightDue) {
+    if (leftBucket === 'overdue') {
+      return rightDue - leftDue;
+    }
+    return leftDue - rightDue;
+  }
+
+  const difficultyDelta = compareByDifficulty(left, right);
+  if (difficultyDelta !== 0) {
+    return difficultyDelta;
+  }
+
+  return compareByName(left, right);
+}
+
+function compareOldestFirst(left: Assignment, right: Assignment) {
+  const leftBucket = getAssignmentBucket(left);
+  const rightBucket = getAssignmentBucket(right);
+  const bucketDelta = getBucketOrder(leftBucket, 'oldest-first') - getBucketOrder(rightBucket, 'oldest-first');
+  if (bucketDelta !== 0) {
+    return bucketDelta;
+  }
+
+  const leftDue = getDueTimestamp(left);
+  const rightDue = getDueTimestamp(right);
+  if (leftDue !== rightDue) {
+    return leftDue - rightDue;
+  }
+
+  const difficultyDelta = compareByDifficulty(left, right);
+  if (difficultyDelta !== 0) {
+    return difficultyDelta;
+  }
+
+  return compareByName(left, right);
+}
+
+function getLogicBetaBaseScore(assignments: Assignment[]) {
+  if (!assignments.length) {
+    return 4;
+  }
+
+  if (assignments.some((assignment) => getExistenceDifficultyRank(assignment.difficulty) === 1)) {
+    return 1;
+  }
+
+  if (assignments.some((assignment) => getExistenceDifficultyRank(assignment.difficulty) === 2)) {
+    return 2;
+  }
+
+  if (assignments.some((assignment) => getExistenceDifficultyRank(assignment.difficulty) === 3)) {
+    return 3;
+  }
+
+  return 4;
+}
+
+function buildLogicBetaPriorityMap(assignments: Assignment[]) {
+  const groupedAssignments: Record<AssignmentBucket, Assignment[]> = {
+    overdue: [],
+    today: [],
+    'future-near': [],
+    'future-far': []
+  };
+
+  assignments.forEach((assignment) => {
+    groupedAssignments[getAssignmentBucket(assignment)].push(assignment);
+  });
+
+  const bucketScores: Record<AssignmentBucket, number> = {
+    overdue: getLogicBetaBaseScore(groupedAssignments.overdue),
+    today: getLogicBetaBaseScore(groupedAssignments.today),
+    'future-near': getLogicBetaBaseScore(groupedAssignments['future-near']),
+    'future-far': getLogicBetaBaseScore(groupedAssignments['future-far'])
+  };
+
+  return Object.fromEntries(
+    assignments.map((assignment) => {
+      const bucket = getAssignmentBucket(assignment);
+      const dayDistance = getDaysUntilDue(assignment.due);
+      const distanceFactor = bucket === 'overdue'
+        ? Math.abs(dayDistance)
+        : bucket === 'today'
+          ? 0
+          : Math.max(0, dayDistance);
+
+      const score = bucketScores[bucket] + distanceFactor;
+      return [assignment.id, { score, color: getPriorityColor(assignment) }];
+    })
+  ) as Record<string, AssignmentPriority>;
+}
+
+function buildSequentialPriorityMap(sortedAssignments: Assignment[]) {
+  return Object.fromEntries(
+    sortedAssignments.map((assignment, index) => [
+      assignment.id,
+      {
+        score: index + 1,
+        color: getPriorityColor(assignment)
+      }
+    ])
+  ) as Record<string, AssignmentPriority>;
 }
 
 export function createEmptyAssignmentForm(): AssignmentFormValues {
@@ -158,10 +300,11 @@ export function createEmptyAssignmentForm(): AssignmentFormValues {
     difficulty: '',
     ad: '',
     due: '',
+    dueTime: '',
     desc: '',
     repeatEnabled: false,
     repeatEvery: '',
-    repeatTime: '08:00',
+    repeatTime: '00:00',
     repeatDaysOfWeek: [],
     repeatDaysOfMonth: [],
     repeatTimezone: getLocalTimezone()
@@ -174,9 +317,11 @@ export function getInitialUser(): UserProfile {
 
 export function getInitialGradingMode(): GradingMode {
   try {
-    return window.localStorage.getItem('learnself-grading-mode') === 'oldest-first'
-      ? 'oldest-first'
-      : 'newest-first';
+    const savedMode = window.localStorage.getItem('learnself-grading-mode');
+    if (savedMode === 'oldest-first' || savedMode === 'logic-beta') {
+      return savedMode;
+    }
+    return 'newest-first';
   } catch {
     return 'newest-first';
   }
@@ -194,40 +339,43 @@ export function getGradingModeMeta(mode: GradingMode) {
   return GRADING_MODE_OPTIONS.find((option) => option.key === mode) ?? GRADING_MODE_OPTIONS[0];
 }
 
-export function buildAssignmentPriorityState(assignments: Assignment[], mode: GradingMode) {
-  const buckets = assignments.reduce<Record<AssignmentBucket, number>>((counts, assignment) => {
-    counts[getAssignmentBucket(assignment)] += 1;
-    return counts;
-  }, { overdue: 0, today: 0, future: 0 });
+export function buildAssignmentPriorityState(assignments: Assignment[], mode: GradingMode): AssignmentPriorityState {
+  if (!assignments.length) {
+    return { priorities: {}, sortedAssignments: [] };
+  }
 
-  const priorities = Object.fromEntries(
-    assignments.map((assignment) => {
-      const score = assignments.length === 1
-        ? 1
-        : mode === 'newest-first'
-          ? getNewestFirstScore(assignment, buckets)
-          : getOldestFirstScore(assignment, buckets);
+  if (mode === 'logic-beta') {
+    const priorities = buildLogicBetaPriorityMap(assignments);
+    const sortedAssignments = [...assignments].sort((left, right) => {
+      const leftPriority = priorities[left.id]?.score ?? Number.MAX_SAFE_INTEGER;
+      const rightPriority = priorities[right.id]?.score ?? Number.MAX_SAFE_INTEGER;
+      if (leftPriority !== rightPriority) {
+        return leftPriority - rightPriority;
+      }
 
-      return [assignment.id, { score, color: getPriorityColor(assignment) }];
-    })
-  ) as Record<string, AssignmentPriority>;
+      const leftBucket = getAssignmentBucket(left);
+      const rightBucket = getAssignmentBucket(right);
+      const bucketDelta = getBucketOrder(leftBucket, 'oldest-first') - getBucketOrder(rightBucket, 'oldest-first');
+      if (bucketDelta !== 0) {
+        return bucketDelta;
+      }
 
-  const sortedAssignments = [...assignments].sort((left, right) => {
-    const leftPriority = priorities[left.id]?.score ?? Number.MAX_SAFE_INTEGER;
-    const rightPriority = priorities[right.id]?.score ?? Number.MAX_SAFE_INTEGER;
-    if (leftPriority !== rightPriority) {
-      return leftPriority - rightPriority;
-    }
+      const leftDue = getDueTimestamp(left);
+      const rightDue = getDueTimestamp(right);
+      if (leftDue !== rightDue) {
+        return leftDue - rightDue;
+      }
 
-    const leftDue = parseAssignmentDate(left.due)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-    const rightDue = parseAssignmentDate(right.due)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-    if (leftDue !== rightDue) {
-      return leftDue - rightDue;
-    }
+      return compareByName(left, right);
+    });
 
-    return left.name.localeCompare(right.name);
-  });
+    return { priorities, sortedAssignments };
+  }
 
+  const sortedAssignments = [...assignments].sort(
+    mode === 'newest-first' ? compareNewestFirst : compareOldestFirst
+  );
+  const priorities = buildSequentialPriorityMap(sortedAssignments);
   return { priorities, sortedAssignments };
 }
 
@@ -238,13 +386,27 @@ export function formatDate(iso: string) {
   return `${month}/${day}/${year.slice(2)}`;
 }
 
-export function isPastDueDate(iso: string) {
-  const due = parseAssignmentDate(iso);
+export function formatTimeLabel(time: string) {
+  const normalized = getDueTimeOrDefault(time);
+  const [hoursString, minutesString] = normalized.split(':');
+  const hours = Number(hoursString);
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  const displayHour = hours % 12 || 12;
+  return `${displayHour}:${minutesString} ${suffix}`;
+}
+
+export function formatDueDateTime(dateIso: string, time: string) {
+  if (!dateIso) return '-';
+  return `${formatDate(dateIso)} ${formatTimeLabel(time)}`;
+}
+
+export function isPastDueDate(dateIso: string, time = '00:00') {
+  const due = parseDueDateTime(dateIso, time);
   if (!due) {
     return false;
   }
 
-  return due.getTime() < getTodayStart().getTime();
+  return due.getTime() < new Date().getTime();
 }
 
 export function abbreviateClass(name: string) {
@@ -338,17 +500,6 @@ export function getNextRepeatOccurrence(anchorIso: string, repeatEvery: Assignme
   }
 }
 
-function formatTimeLabel(time: string) {
-  const normalized = normalizeTime(time);
-  if (!normalized) return time || '-';
-
-  const [hoursString, minutesString] = normalized.split(':');
-  const hours = Number(hoursString);
-  const suffix = hours >= 12 ? 'PM' : 'AM';
-  const displayHour = hours % 12 || 12;
-  return `${displayHour}:${minutesString} ${suffix}`;
-}
-
 export function formatRepeatSummary(config: RepeatScheduleSource) {
   if (!config.repeatEnabled || !config.repeatEvery) {
     return 'Does not repeat';
@@ -358,20 +509,20 @@ export function formatRepeatSummary(config: RepeatScheduleSource) {
 
   switch (config.repeatEvery) {
     case 'day':
-      return `Every day at ${timeLabel}`;
+      return `Every day due at ${timeLabel}`;
     case 'week':
-      return `Every week at ${timeLabel}`;
+      return `Every week due at ${timeLabel}`;
     case 'month':
-      return `Every month at ${timeLabel}`;
+      return `Every month due at ${timeLabel}`;
     case 'days-of-week': {
       const labels = normalizeNumberList(config.repeatDaysOfWeek, 0, 6)
         .map((value) => WEEKDAY_PICKER_OPTIONS.find((option) => option.value === value)?.shortLabel ?? value)
         .join(', ');
-      return `Every ${labels || 'selected weekday'} at ${timeLabel}`;
+      return `Every ${labels || 'selected weekday'} due at ${timeLabel}`;
     }
     case 'days-of-month': {
       const labels = normalizeNumberList(config.repeatDaysOfMonth, 1, 31).join(', ');
-      return `Every month on ${labels || 'selected day'} at ${timeLabel}`;
+      return `Every month on ${labels || 'selected day'} due at ${timeLabel}`;
     }
     default:
       return 'Does not repeat';

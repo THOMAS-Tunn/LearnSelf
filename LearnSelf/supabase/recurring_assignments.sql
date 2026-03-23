@@ -9,6 +9,7 @@ end
 $$;
 
 alter table public.assignments
+  add column if not exists due_time time not null default time '00:00',
   add column if not exists repeat_enabled boolean not null default false,
   add column if not exists repeat_every text,
   add column if not exists repeat_time time,
@@ -165,6 +166,7 @@ declare
   rule record;
   created_count integer := 0;
   local_now timestamp without time zone;
+  horizon_date date;
   next_occurrence date;
   assigned_date date;
   due_date date;
@@ -177,14 +179,9 @@ begin
     order by next_occurrence_on asc, created_at asc
   loop
     local_now := timezone(coalesce(nullif(rule.repeat_timezone, ''), 'UTC'), now());
+    horizon_date := (local_now::date + interval '1 month')::date;
 
-    while
-      rule.next_occurrence_on < local_now::date
-      or (
-        rule.next_occurrence_on = local_now::date
-        and rule.repeat_time <= local_now::time
-      )
-    loop
+    while rule.next_occurrence_on <= horizon_date loop
       assigned_date := case when rule.uses_assigned_date then rule.next_occurrence_on else null end;
       due_date := rule.next_occurrence_on + rule.due_offset_days;
 
@@ -194,6 +191,7 @@ begin
         class_name,
         assigned_date,
         due_date,
+        due_time,
         description,
         difficulty,
         status,
@@ -211,6 +209,7 @@ begin
         rule.class_name,
         assigned_date,
         due_date,
+        coalesce(rule.repeat_time, time '00:00'),
         rule.description,
         rule.difficulty,
         'active',

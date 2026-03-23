@@ -379,6 +379,13 @@ img {
   color: #e06b6b;
 }
 
+.field-note {
+  margin-top: 6px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
 @keyframes errorShake {
   0%,
   100% {
@@ -1546,10 +1553,11 @@ tbody tr:nth-child(n + 8) {
 }
 
 .prio-badge {
-  width: 26px;
+  min-width: 26px;
   height: 26px;
+  padding: 0 7px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
 }
 
@@ -1637,6 +1645,8 @@ tbody tr:nth-child(n + 8) {
 
 .due-cell {
   font-weight: 600;
+  white-space: nowrap;
+  font-size: 13px;
 }
 
 .due-cell.is-overdue,

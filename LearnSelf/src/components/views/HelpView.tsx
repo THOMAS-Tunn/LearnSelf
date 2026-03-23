@@ -1,7 +1,7 @@
 export function HelpView() {
   const items = [
-    ['blue-soft plain-card', 'Adding an assignment', 'Click the + button on the Dashboard. Name, Due Date, and Difficulty are required.'],
-    ['yellow-soft plain-card', 'Priority system', 'Red means overdue or due now, yellow means due soon, and green means there is more time.'],
+    ['blue-soft plain-card', 'Adding an assignment', 'Click the + button on the Dashboard. Name, Due Date, and Difficulty are required. Due Time is optional and defaults to 12:00 AM.'],
+    ['yellow-soft plain-card', 'Priority system', 'Pick Newest, Oldest, or Logic (Beta!). Red means overdue or due now, yellow means due soon, and green means there is more time.'],
     ['green-soft plain-card', 'Bulk actions', 'Select rows, then use Mark Finished or Delete above the table.'],
     ['red-soft plain-card', 'Viewing details', 'Click any dashboard row to open the full assignment details.']
   ];

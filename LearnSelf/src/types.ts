@@ -2,7 +2,7 @@ export type ViewName = 'dashboard' | 'community' | 'friends' | 'finished' | 'tra
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'Group';
 export type AssignmentStatus = 'active' | 'finished' | 'trashed';
-export type GradingMode = 'newest-first' | 'oldest-first';
+export type GradingMode = 'newest-first' | 'oldest-first' | 'logic-beta';
 export type AssignmentRepeatEvery = 'day' | 'week' | 'month' | 'days-of-week' | 'days-of-month';
 export type CommunityPostStatus = 'open' | 'deleted';
 export type CommunityFeedSection = 'all' | 'favorite-posts' | 'favorite-comments' | 'my-posts' | 'friend-posts' | 'archived' | 'deleted';
@@ -22,6 +22,7 @@ export interface Assignment {
   difficulty: Difficulty;
   ad: string;
   due: string;
+  dueTime: string;
   desc: string;
   status: AssignmentStatus;
   repeatEnabled: boolean;
@@ -39,6 +40,7 @@ export interface AssignmentFormValues {
   difficulty: '' | Difficulty;
   ad: string;
   due: string;
+  dueTime: string;
   desc: string;
   repeatEnabled: boolean;
   repeatEvery: '' | AssignmentRepeatEvery;

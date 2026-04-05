@@ -419,6 +419,41 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!client) return;
+
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+
+      void client.auth.getSession()
+        .then(async ({ data, error }) => {
+          if (error) throw error;
+
+          const sessionUser = data.session?.user ?? null;
+          if (!sessionUser) {
+            if (currentUser.id) {
+              resetAppState();
+              window.location.reload();
+            }
+            return;
+          }
+
+          if (currentUser.id !== sessionUser.id) {
+            await hydrateUserSession(client, sessionUser.id, mapUser(sessionUser));
+          }
+        })
+        .catch(() => {
+          if (currentUser.id) {
+            resetAppState();
+            window.location.reload();
+          }
+        });
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, [client, currentUser.id]);
+
+  useEffect(() => {
     if (activeView !== 'community' || !client || !currentUser.id || communityLoading || communityLoadAttempted) {
       return;
     }

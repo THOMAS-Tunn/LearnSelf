@@ -124,11 +124,13 @@ export function AuthPage(props: AuthPageProps) {
               <input
                 className="field-input"
                 id="login-email"
+                name="email"
                 type="email"
                 placeholder="you@school.edu"
                 autoComplete="email"
                 value={props.loginEmail}
                 onChange={(e) => props.onLoginEmailChange(e.target.value)}
+                onInput={(e) => props.onLoginEmailChange((e.target as HTMLInputElement).value)}
               />
               {props.loginErrors.email
                 ? <div className="field-error show">{props.loginErrors.email}</div>
@@ -141,11 +143,13 @@ export function AuthPage(props: AuthPageProps) {
                 <input
                   className="field-input"
                   id="login-pw"
+                  name="password"
                   type={props.showLoginPassword ? 'text' : 'password'}
                   placeholder="Your Password"
                   autoComplete="current-password"
                   value={props.loginPassword}
                   onChange={(e) => props.onLoginPasswordChange(e.target.value)}
+                  onInput={(e) => props.onLoginPasswordChange((e.target as HTMLInputElement).value)}
                 />
                 <PasswordToggle
                   visible={props.showLoginPassword}
@@ -197,10 +201,13 @@ export function AuthPage(props: AuthPageProps) {
               <input
                 className="field-input"
                 id="su-email"
+                name="email"
                 type="email"
                 placeholder="you@school.edu"
+                autoComplete="email"
                 value={props.signupEmail}
                 onChange={(e) => props.onSignupEmailChange(e.target.value)}
+                onInput={(e) => props.onSignupEmailChange((e.target as HTMLInputElement).value)}
               />
               {props.signupErrors.email
                 ? <div className="field-error show">{props.signupErrors.email}</div>
@@ -213,11 +220,13 @@ export function AuthPage(props: AuthPageProps) {
                 <input
                   className="field-input"
                   id="su-pw"
+                  name="new-password"
                   type={props.showSignupPassword ? 'text' : 'password'}
                   placeholder="Min. 5 characters"
                   autoComplete="new-password"
                   value={props.signupPassword}
                   onChange={(e) => props.onSignupPasswordChange(e.target.value)}
+                  onInput={(e) => props.onSignupPasswordChange((e.target as HTMLInputElement).value)}
                 />
                 <PasswordToggle
                   visible={props.showSignupPassword}

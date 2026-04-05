@@ -74,8 +74,15 @@ export function AddAssignmentModal(props: AddAssignmentModalProps) {
             <DatePicker id="f-ad" value={props.values.ad} onChange={(value) => props.onChange('ad', value)} placeholder="Pick assign date" />
           </div>
           <div className="modal-field">
-            <label className="modal-label" htmlFor="f-due">Due Date *</label>
-            <DatePicker id="f-due" value={props.values.due} onChange={(value) => props.onChange('due', value)} placeholder="Pick due date" required />
+            <label className="modal-label" htmlFor="f-due">Due Date {props.values.repeatEnabled ? '(Optional)' : '*'}</label>
+            <DatePicker
+              id="f-due"
+              value={props.values.due}
+              onChange={(value) => props.onChange('due', value)}
+              placeholder={props.values.repeatEnabled ? 'Optional for repeat assignments' : 'Pick due date'}
+              required={!props.values.repeatEnabled}
+            />
+            {props.values.repeatEnabled ? <div className="modal-hint">Leave due date empty to use each repeat day as the due date.</div> : null}
             {props.errors.due ? <div className="field-error show">{props.errors.due}</div> : null}
           </div>
         </div>
@@ -120,14 +127,15 @@ export function AddAssignmentModal(props: AddAssignmentModalProps) {
                 </div>
 
                 <div className="modal-field">
-                  <label className="modal-label" htmlFor="f-repeat-time">Time *</label>
+                  <label className="modal-label" htmlFor="f-repeat-time">Due Time *</label>
                   <input
-                    className="modal-input"
+                    className="modal-input modal-input-time"
                     id="f-repeat-time"
                     type="time"
                     value={props.values.repeatTime}
                     onChange={(event) => props.onChange('repeatTime', event.target.value)}
                   />
+                  <div className="modal-hint">Choose the time of day when each repeated assignment becomes due.</div>
                   {props.errors.repeatTime ? <div className="field-error show">{props.errors.repeatTime}</div> : null}
                 </div>
               </div>

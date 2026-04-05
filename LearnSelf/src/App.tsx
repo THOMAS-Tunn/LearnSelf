@@ -87,18 +87,31 @@ function formatForgotPasswordError(error: unknown) {
   return message;
 }
 
+function isRecurringSetupError(error: unknown) {
+  const message = getErrorMessage(error, '').toLowerCase();
+  return (
+    message.includes('assignment_repeat_rules')
+    || message.includes('repeat_enabled')
+    || message.includes('repeat_every')
+    || message.includes('repeat_time')
+    || message.includes('repeat_rule')
+    || message.includes('sync_recurring_assignments_for_current_user')
+  );
+}
+
+function isTransientLoadError(error: unknown) {
+  const message = getErrorMessage(error, '').toLowerCase();
+  return (
+    message.includes('load failed')
+    || message.includes('failed to fetch')
+    || message.includes('network request failed')
+    || message.includes('networkerror')
+  );
+}
+
 function formatAssignmentError(error: unknown, fallback: string) {
   const message = getErrorMessage(error, fallback);
-  const normalized = message.toLowerCase();
-
-  if (
-    normalized.includes('assignment_repeat_rules')
-    || normalized.includes('repeat_enabled')
-    || normalized.includes('repeat_every')
-    || normalized.includes('repeat_time')
-    || normalized.includes('repeat_rule')
-    || normalized.includes('sync_recurring_assignments_for_current_user')
-  ) {
+  if (isRecurringSetupError(error)) {
     return 'Recurring assignments are not set up yet. Run the SQL in supabase/recurring_assignments.sql, then try again.';
   }
 
@@ -406,6 +419,41 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!client) return;
+
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+
+      void client.auth.getSession()
+        .then(async ({ data, error }) => {
+          if (error) throw error;
+
+          const sessionUser = data.session?.user ?? null;
+          if (!sessionUser) {
+            if (currentUser.id) {
+              resetAppState();
+              window.location.reload();
+            }
+            return;
+          }
+
+          if (currentUser.id !== sessionUser.id) {
+            await hydrateUserSession(client, sessionUser.id, mapUser(sessionUser));
+          }
+        })
+        .catch(() => {
+          if (currentUser.id) {
+            resetAppState();
+            window.location.reload();
+          }
+        });
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, [client, currentUser.id]);
+
+  useEffect(() => {
     if (activeView !== 'community' || !client || !currentUser.id || communityLoading || communityLoadAttempted) {
       return;
     }
@@ -473,9 +521,28 @@ export default function App() {
     setSelectedFriendshipIds([]);
     setFriendActionLoadingKey(null);
 
+    async function fetchAssignmentsWithRetry() {
+      try {
+        return await fetchAssignments(activeClient, userId);
+      } catch (error) {
+        if (!isTransientLoadError(error)) throw error;
+        await new Promise<void>((resolve) => {
+          window.setTimeout(() => resolve(), 350);
+        });
+        return fetchAssignments(activeClient, userId);
+      }
+    }
+
     try {
-      await syncRecurringAssignments(activeClient);
-      const allAssignments = await fetchAssignments(activeClient, userId);
+      try {
+        await syncRecurringAssignments(activeClient);
+      } catch (error) {
+        if (!isTransientLoadError(error)) {
+          throw error;
+        }
+      }
+
+      const allAssignments = await fetchAssignmentsWithRetry();
       if (requestId !== sessionLoadRequestRef.current) return;
 
       setAssignments(allAssignments.filter((item) => item.status === 'active'));
@@ -595,7 +662,7 @@ export default function App() {
       ...current,
       [field]: undefined,
       ...(field === 'repeatEnabled' || field === 'repeatEvery'
-        ? { repeatEvery: undefined, repeatTime: undefined, repeatDaysOfWeek: undefined, repeatDaysOfMonth: undefined }
+        ? { repeatEvery: undefined, repeatTime: undefined, repeatDaysOfWeek: undefined, repeatDaysOfMonth: undefined, due: undefined }
         : {}),
       ...(field === 'ad' || field === 'due'
         ? { due: undefined, repeatDaysOfWeek: undefined, repeatDaysOfMonth: undefined }
@@ -624,7 +691,13 @@ export default function App() {
     const nextErrors: typeof addFormErrors = {};
     if (!addForm.name.trim()) nextErrors.name = 'Name is required.';
     if (!addForm.difficulty) nextErrors.difficulty = 'Difficulty is required.';
-    if (!addForm.due) nextErrors.due = 'Due date is required.';
+    if (!addForm.repeatEnabled && !addForm.due) {
+      nextErrors.due = 'Due date is required.';
+    }
+
+    if (addForm.repeatEnabled && !addForm.ad && !addForm.due) {
+      nextErrors.due = 'Set either an assign date or a due date to anchor the repeat schedule.';
+    }
 
     const assignedDate = addForm.ad ? new Date(`${addForm.ad}T00:00:00`) : null;
     const dueDate = addForm.due ? new Date(`${addForm.due}T00:00:00`) : null;
@@ -1136,12 +1209,16 @@ export default function App() {
     setLoginStatus(null);
 
     try {
-      const { error } = await client.auth.signInWithPassword({
+      const { data, error } = await client.auth.signInWithPassword({
         email: loginEmail.trim(),
         password: loginPassword.trim()
       });
 
       if (error) throw error;
+
+      if (data.user) {
+        scheduleSessionHydration(client, data.user.id, mapUser(data.user));
+      }
     } catch (error) {
       const message = getErrorMessage(error, 'Unable to log in.');
       setLoginStatus({ tone: 'error', text: message });
@@ -1331,6 +1408,7 @@ export default function App() {
     if (!validateAssignmentForm() || !client || !addForm.difficulty) return;
     setAddLoading(true);
     let repeatRuleId = '';
+    let repeatWasDowngraded = false;
 
     try {
       const { data: userData, error: userError } = await client.auth.getUser();
@@ -1344,7 +1422,15 @@ export default function App() {
       const repeatRulePayload = buildRepeatRulePayload();
 
       if (repeatRulePayload) {
-        repeatRuleId = await insertAssignmentRepeatRule(client, repeatRulePayload, userId);
+        try {
+          repeatRuleId = await insertAssignmentRepeatRule(client, repeatRulePayload, userId);
+        } catch (error) {
+          if (isRecurringSetupError(error)) {
+            repeatWasDowngraded = true;
+          } else {
+            throw error;
+          }
+        }
       }
 
       const saved = await insertAssignment(
@@ -1358,12 +1444,12 @@ export default function App() {
           due: addForm.due,
           desc: addForm.desc.trim(),
           status: 'active',
-          repeatEnabled: addForm.repeatEnabled,
-          repeatEvery: addForm.repeatEvery,
-          repeatTime: addForm.repeatTime,
-          repeatDaysOfWeek: addForm.repeatDaysOfWeek,
-          repeatDaysOfMonth: addForm.repeatDaysOfMonth,
-          repeatTimezone: addForm.repeatTimezone,
+          repeatEnabled: repeatWasDowngraded ? false : addForm.repeatEnabled,
+          repeatEvery: repeatWasDowngraded ? '' : addForm.repeatEvery,
+          repeatTime: repeatWasDowngraded ? '' : addForm.repeatTime,
+          repeatDaysOfWeek: repeatWasDowngraded ? [] : addForm.repeatDaysOfWeek,
+          repeatDaysOfMonth: repeatWasDowngraded ? [] : addForm.repeatDaysOfMonth,
+          repeatTimezone: repeatWasDowngraded ? '' : addForm.repeatTimezone,
           repeatRuleId
         },
         userId
@@ -1373,6 +1459,12 @@ export default function App() {
       setAddModalOpen(false);
       setAddForm(createEmptyAssignmentForm());
       setAddFormErrors({});
+      if (repeatWasDowngraded) {
+        setLoginStatus({
+          tone: 'info',
+          text: 'Assignment saved, but repeat scheduling is not enabled in your database yet. Run supabase/recurring_assignments.sql to enable repeats.'
+        });
+      }
     } catch (error) {
       if (repeatRuleId) {
         try {

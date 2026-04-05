@@ -99,6 +99,16 @@ function isRecurringSetupError(error: unknown) {
   );
 }
 
+function isTransientLoadError(error: unknown) {
+  const message = getErrorMessage(error, '').toLowerCase();
+  return (
+    message.includes('load failed')
+    || message.includes('failed to fetch')
+    || message.includes('network request failed')
+    || message.includes('networkerror')
+  );
+}
+
 function formatAssignmentError(error: unknown, fallback: string) {
   const message = getErrorMessage(error, fallback);
   if (isRecurringSetupError(error)) {
@@ -476,9 +486,28 @@ export default function App() {
     setSelectedFriendshipIds([]);
     setFriendActionLoadingKey(null);
 
+    async function fetchAssignmentsWithRetry() {
+      try {
+        return await fetchAssignments(activeClient, userId);
+      } catch (error) {
+        if (!isTransientLoadError(error)) throw error;
+        await new Promise<void>((resolve) => {
+          window.setTimeout(() => resolve(), 350);
+        });
+        return fetchAssignments(activeClient, userId);
+      }
+    }
+
     try {
-      await syncRecurringAssignments(activeClient);
-      const allAssignments = await fetchAssignments(activeClient, userId);
+      try {
+        await syncRecurringAssignments(activeClient);
+      } catch (error) {
+        if (!isTransientLoadError(error)) {
+          throw error;
+        }
+      }
+
+      const allAssignments = await fetchAssignmentsWithRetry();
       if (requestId !== sessionLoadRequestRef.current) return;
 
       setAssignments(allAssignments.filter((item) => item.status === 'active'));

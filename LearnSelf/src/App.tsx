@@ -14,6 +14,7 @@ import { ToolsView } from './components/views/ToolsView';
 import { HelpView } from './components/views/HelpView';
 import { ProfileView } from './components/views/ProfileView';
 import { SettingsView } from './components/views/SettingsView';
+import { ClassesView } from './components/views/ClassesView';
 import {
   buildAssignmentPriorityState,
   createEmptyAssignmentForm,
@@ -39,6 +40,14 @@ import {
 } from './lib/community';
 import { addFriend, fetchFriends, removeFriendships, searchDirectoryProfiles, syncUserDirectoryProfile } from './lib/social';
 import {
+  assignClassAssignmentToStudents,
+  createTeacherClass,
+  fetchTeacherClasses,
+  fetchTeacherClassAssignments,
+  fetchTeacherStatus,
+  requestTeacherVerification
+} from './lib/classes';
+import {
   createSupabaseBrowserClient,
   deleteAssignmentRepeatRule,
   deleteAssignments,
@@ -60,6 +69,9 @@ import type {
   CommunityFeedSection,
   CommunityPost,
   CommunityPostFormValues,
+  ClassAssignmentTemplate,
+  ClassRoom,
+  Difficulty,
   FriendRecord,
   FriendSearchResult,
   GradingMode,
@@ -244,6 +256,20 @@ export default function App() {
   const [profileConfirmPassword, setProfileConfirmPassword] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileStatus, setProfileStatus] = useState<StatusMessage | null>(null);
+  const [teacherStatusLoading, setTeacherStatusLoading] = useState(false);
+  const [teacherApproverEmail, setTeacherApproverEmail] = useState('');
+  const [teacherClasses, setTeacherClasses] = useState<ClassRoom[]>([]);
+  const [teacherClassAssignments, setTeacherClassAssignments] = useState<ClassAssignmentTemplate[]>([]);
+  const [teacherWorkspaceLoading, setTeacherWorkspaceLoading] = useState(false);
+  const [newClassName, setNewClassName] = useState('');
+  const [newClassCode, setNewClassCode] = useState('');
+  const [newClassDescription, setNewClassDescription] = useState('');
+  const [classAssignmentClassId, setClassAssignmentClassId] = useState('');
+  const [classAssignmentName, setClassAssignmentName] = useState('');
+  const [classAssignmentDescription, setClassAssignmentDescription] = useState('');
+  const [classAssignmentDueDate, setClassAssignmentDueDate] = useState('');
+  const [classAssignmentDueTime, setClassAssignmentDueTime] = useState('');
+  const [classAssignmentDifficulty, setClassAssignmentDifficulty] = useState<'' | Difficulty>('');
   const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
   const [communityLoadAttempted, setCommunityLoadAttempted] = useState(false);
@@ -429,8 +455,16 @@ export default function App() {
     void loadFriends();
   }, [activeView, client, currentUser.id, friendsLoading, friendsLoadAttempted]);
 
+  useEffect(() => {
+    if (activeView !== 'classes' || !client || !currentUser.id || !currentUser.isTeacher || teacherWorkspaceLoading) {
+      return;
+    }
+
+    void loadTeacherWorkspace();
+  }, [activeView, client, currentUser.id, currentUser.isTeacher, teacherWorkspaceLoading]);
+
   async function hydrateUserSession(activeClient: SupabaseClient, userId: string, profile: UserProfile) {
-    const sessionKey = `${userId}:${profile.email}:${profile.name}:${profile.avatarUrl}`;
+    const sessionKey = `${userId}:${profile.email}:${profile.name}:${profile.avatarUrl}:${profile.isTeacher}:${profile.teacherVerificationStatus}`;
     if (hydratedSessionKeyRef.current === sessionKey) {
       return;
     }
@@ -441,10 +475,14 @@ export default function App() {
 
     try {
       syncedProfile = await syncUserDirectoryProfile(activeClient, profile);
+      const teacherStatus = await fetchTeacherStatus(activeClient, userId);
+      syncedProfile = { ...syncedProfile, ...teacherStatus };
     } catch {
       // Keep the auth profile if the social tables are not ready yet.
     }
 
+    const approverEmail = window.LEARNSELF_CONFIG?.teacherApproverEmail?.trim() || '';
+    setTeacherApproverEmail(approverEmail);
     setCurrentUser(syncedProfile);
     setProfileName(syncedProfile.name);
     setProfileEmail(syncedProfile.email);
@@ -480,6 +518,9 @@ export default function App() {
     setSelectedFriendProfile(null);
     setSelectedFriendshipIds([]);
     setFriendActionLoadingKey(null);
+    setTeacherClasses([]);
+    setTeacherClassAssignments([]);
+    setTeacherWorkspaceLoading(false);
 
     try {
       await syncRecurringAssignments(activeClient);
@@ -560,6 +601,20 @@ export default function App() {
     setSelectedFriendProfile(null);
     setSelectedFriendshipIds([]);
     setFriendActionLoadingKey(null);
+    setTeacherApproverEmail('');
+    setTeacherClasses([]);
+    setTeacherClassAssignments([]);
+    setTeacherWorkspaceLoading(false);
+    setTeacherStatusLoading(false);
+    setNewClassName('');
+    setNewClassCode('');
+    setNewClassDescription('');
+    setClassAssignmentClassId('');
+    setClassAssignmentName('');
+    setClassAssignmentDescription('');
+    setClassAssignmentDueDate('');
+    setClassAssignmentDueTime('');
+    setClassAssignmentDifficulty('');
   }
 
   function handleAddFormChange<K extends keyof AssignmentFormValues>(field: K, value: AssignmentFormValues[K]) {
@@ -1145,6 +1200,101 @@ export default function App() {
     }
   }
 
+  async function loadTeacherWorkspace(force = false) {
+    if (!client || !currentUser.id || !currentUser.isTeacher) return;
+    if (!force && teacherWorkspaceLoading) return;
+
+    setTeacherWorkspaceLoading(true);
+    try {
+      const [classes, classAssignments] = await Promise.all([
+        fetchTeacherClasses(client, currentUser.id),
+        fetchTeacherClassAssignments(client, currentUser.id)
+      ]);
+      setTeacherClasses(classes);
+      setTeacherClassAssignments(classAssignments);
+    } catch (error) {
+      setProfileStatus({ tone: 'error', text: getErrorMessage(error, 'Could not load teacher classes.') });
+    } finally {
+      setTeacherWorkspaceLoading(false);
+    }
+  }
+
+  async function handleTeacherVerificationRequest() {
+    if (!client || !currentUser.id) return;
+    setTeacherStatusLoading(true);
+
+    try {
+      const request = await requestTeacherVerification(client, currentUser, teacherApproverEmail);
+      setCurrentUser((user) => ({ ...user, teacherVerificationStatus: 'pending', isTeacher: false }));
+      window.open(request.mailtoUrl, '_blank', 'noopener,noreferrer');
+      setProfileStatus({
+        tone: 'success',
+        text: 'Teacher verification request created. We opened your email client so you can notify admin.'
+      });
+    } catch (error) {
+      setProfileStatus({ tone: 'error', text: getErrorMessage(error, 'Could not request teacher verification.') });
+    } finally {
+      setTeacherStatusLoading(false);
+    }
+  }
+
+  async function handleCreateTeacherClass() {
+    if (!client || !currentUser.id || !currentUser.isTeacher) return;
+    if (!newClassName.trim() || !newClassCode.trim()) {
+      setProfileStatus({ tone: 'error', text: 'Class name and class code are required.' });
+      return;
+    }
+
+    setTeacherWorkspaceLoading(true);
+    try {
+      await createTeacherClass(client, currentUser.id, {
+        name: newClassName.trim(),
+        code: newClassCode.trim(),
+        description: newClassDescription.trim()
+      });
+      setNewClassName('');
+      setNewClassCode('');
+      setNewClassDescription('');
+      await loadTeacherWorkspace(true);
+      setProfileStatus({ tone: 'success', text: 'Class created.' });
+    } catch (error) {
+      setProfileStatus({ tone: 'error', text: getErrorMessage(error, 'Could not create class.') });
+    } finally {
+      setTeacherWorkspaceLoading(false);
+    }
+  }
+
+  async function handleAssignClassAssignment() {
+    if (!client || !currentUser.id || !currentUser.isTeacher) return;
+    if (!classAssignmentClassId || !classAssignmentName.trim() || !classAssignmentDueDate || !classAssignmentDifficulty) {
+      setProfileStatus({ tone: 'error', text: 'Class, assignment name, due date, and difficulty are required.' });
+      return;
+    }
+
+    setTeacherWorkspaceLoading(true);
+    try {
+      await assignClassAssignmentToStudents(client, currentUser.id, {
+        classId: classAssignmentClassId,
+        name: classAssignmentName.trim(),
+        description: classAssignmentDescription.trim(),
+        dueDate: classAssignmentDueDate,
+        dueTime: classAssignmentDueTime,
+        difficulty: classAssignmentDifficulty
+      });
+      setClassAssignmentName('');
+      setClassAssignmentDescription('');
+      setClassAssignmentDueDate('');
+      setClassAssignmentDueTime('');
+      setClassAssignmentDifficulty('');
+      await loadTeacherWorkspace(true);
+      setProfileStatus({ tone: 'success', text: 'Assignment sent to all students in the class.' });
+    } catch (error) {
+      setProfileStatus({ tone: 'error', text: getErrorMessage(error, 'Could not assign this class assignment.') });
+    } finally {
+      setTeacherWorkspaceLoading(false);
+    }
+  }
+
   async function handleLogin() {
     if (!validateLogin() || !client) return;
     setLoginLoading(true);
@@ -1654,6 +1804,47 @@ export default function App() {
             deleteLabel="Delete Forever"
           />
         );
+      case 'classes':
+        if (!currentUser.isTeacher) {
+          return (
+            <SimpleTableView
+              id="classes-locked"
+              title="Classes"
+              subtitle="Teacher access is required to open this page."
+              accentClass="blue-soft"
+              assignments={[]}
+              emptyMessage="Open Profile and click 'I am a teacher' to request verification."
+            />
+          );
+        }
+        return (
+          <ClassesView
+            classes={teacherClasses}
+            assignments={teacherClassAssignments}
+            loading={teacherWorkspaceLoading}
+            status={profileStatus}
+            newClassName={newClassName}
+            newClassCode={newClassCode}
+            newClassDescription={newClassDescription}
+            assignmentClassId={classAssignmentClassId}
+            assignmentName={classAssignmentName}
+            assignmentDescription={classAssignmentDescription}
+            assignmentDueDate={classAssignmentDueDate}
+            assignmentDueTime={classAssignmentDueTime}
+            assignmentDifficulty={classAssignmentDifficulty}
+            onNewClassNameChange={setNewClassName}
+            onNewClassCodeChange={setNewClassCode}
+            onNewClassDescriptionChange={setNewClassDescription}
+            onCreateClass={() => void handleCreateTeacherClass()}
+            onAssignmentClassIdChange={setClassAssignmentClassId}
+            onAssignmentNameChange={setClassAssignmentName}
+            onAssignmentDescriptionChange={setClassAssignmentDescription}
+            onAssignmentDueDateChange={setClassAssignmentDueDate}
+            onAssignmentDueTimeChange={setClassAssignmentDueTime}
+            onAssignmentDifficultyChange={setClassAssignmentDifficulty}
+            onAssign={() => void handleAssignClassAssignment()}
+          />
+        );
       case 'tools':
         return <ToolsView />;
       case 'help':
@@ -1671,12 +1862,16 @@ export default function App() {
             profileConfirmPassword={profileConfirmPassword}
             loading={profileLoading}
             status={profileStatus}
+            teacherApproverEmail={teacherApproverEmail}
+            teacherStatusLoading={teacherStatusLoading}
+            teacherVerificationStatus={currentUser.teacherVerificationStatus}
             onNameChange={setProfileName}
             onEmailChange={setProfileEmail}
             onAvatarUrlChange={setProfileAvatarUrl}
             onPasswordChange={setProfilePassword}
             onConfirmPasswordChange={setProfileConfirmPassword}
             onSubmit={() => void handleProfileSave()}
+            onRequestTeacherVerification={() => void handleTeacherVerificationRequest()}
           />
         );
       case 'settings':
@@ -1747,7 +1942,7 @@ export default function App() {
           />
         </>
       ) : (
-        <AppShell currentView={activeView} currentUser={currentUser} status={loginStatus} onViewChange={setActiveView}>
+        <AppShell currentView={activeView} currentUser={currentUser} isTeacher={currentUser.isTeacher} status={loginStatus} onViewChange={setActiveView}>
           {renderView()}
         </AppShell>
       )}

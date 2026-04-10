@@ -4105,3 +4105,55 @@ body::before {
     transform: none;
   }
 }
+
+.teacher-request-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin: 16px 0 10px;
+}
+
+.teacher-request-btn {
+  width: auto;
+  min-width: 190px;
+}
+
+.classes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.classes-panel {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.classes-list-wrap {
+  margin-top: 20px;
+}
+
+.classes-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--surface);
+}
+
+.classes-code {
+  color: var(--ink-light);
+}
+
+.classes-students {
+  font-size: 13px;
+  color: var(--ink-light);
+}

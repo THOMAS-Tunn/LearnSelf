@@ -7,6 +7,8 @@ interface ProfileRow {
   display_name: string | null;
   email: string | null;
   avatar_url: string | null;
+  role: 'student' | 'teacher' | 'teacher_pending' | null;
+  teacher_verification_status: 'none' | 'pending' | 'approved' | 'rejected' | null;
 }
 
 interface FriendshipRow {
@@ -49,24 +51,31 @@ function getProfileScore(profile: DirectoryProfile, normalizedQuery: string) {
 export async function syncUserDirectoryProfile(client: SupabaseClient, profile: UserProfile): Promise<UserProfile> {
   const { data: existing, error: selectError } = await client
     .from(PROFILES_TABLE)
-    .select('user_id, display_name, email, avatar_url')
+    .select('user_id, display_name, email, avatar_url, role, teacher_verification_status')
     .eq('user_id', profile.id)
     .maybeSingle();
 
   if (selectError) throw selectError;
 
+  const existingStatus = existing?.teacher_verification_status;
+  const existingRole = existing?.role;
+
   const mergedProfile: UserProfile = {
     id: profile.id,
     name: getDisplayName(profile.name || existing?.display_name || '', profile.email || existing?.email || ''),
     email: profile.email.trim() || existing?.email || '',
-    avatarUrl: profile.avatarUrl.trim() || existing?.avatar_url || ''
+    avatarUrl: profile.avatarUrl.trim() || existing?.avatar_url || '',
+    isTeacher: existingRole === 'teacher' || existingStatus === 'approved' || profile.isTeacher,
+    teacherVerificationStatus: existingStatus || profile.teacherVerificationStatus || 'none'
   };
 
   const { error: upsertError } = await client.from(PROFILES_TABLE).upsert({
     user_id: mergedProfile.id,
     display_name: mergedProfile.name,
     email: mergedProfile.email,
-    avatar_url: mergedProfile.avatarUrl || null
+    avatar_url: mergedProfile.avatarUrl || null,
+    role: mergedProfile.isTeacher ? 'teacher' : (mergedProfile.teacherVerificationStatus === 'pending' ? 'teacher_pending' : 'student'),
+    teacher_verification_status: mergedProfile.isTeacher ? 'approved' : mergedProfile.teacherVerificationStatus
   }, {
     onConflict: 'user_id'
   });
@@ -90,7 +99,7 @@ export async function fetchFriends(client: SupabaseClient, currentUserId: string
   const friendIds = rows.map((row) => row.user_low_id === currentUserId ? row.user_high_id : row.user_low_id);
   const { data: profileRows, error: profileError } = await client
     .from(PROFILES_TABLE)
-    .select('user_id, display_name, email, avatar_url')
+    .select('user_id, display_name, email, avatar_url, role, teacher_verification_status')
     .in('user_id', friendIds);
 
   if (profileError) throw profileError;
@@ -131,8 +140,8 @@ export async function searchDirectoryProfiles(
 
   const wildcard = `%${trimmedQuery}%`;
   const [nameResult, emailResult] = await Promise.all([
-    client.from(PROFILES_TABLE).select('user_id, display_name, email, avatar_url').ilike('display_name', wildcard).limit(12),
-    client.from(PROFILES_TABLE).select('user_id, display_name, email, avatar_url').ilike('email', wildcard).limit(12)
+    client.from(PROFILES_TABLE).select('user_id, display_name, email, avatar_url, role, teacher_verification_status').ilike('display_name', wildcard).limit(12),
+    client.from(PROFILES_TABLE).select('user_id, display_name, email, avatar_url, role, teacher_verification_status').ilike('email', wildcard).limit(12)
   ]);
 
   if (nameResult.error) throw nameResult.error;

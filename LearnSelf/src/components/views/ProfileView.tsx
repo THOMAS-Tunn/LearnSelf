@@ -1,5 +1,5 @@
 import { UserAvatar } from '../common/UserAvatar';
-import type { StatusMessage, UserProfile } from '../../types';
+import type { StatusMessage, TeacherVerificationStatus, UserProfile } from '../../types';
 
 interface ProfileViewProps {
   currentUser: UserProfile;
@@ -12,12 +12,16 @@ interface ProfileViewProps {
   profileConfirmPassword: string;
   loading: boolean;
   status?: StatusMessage | null;
+  teacherApproverEmail: string;
+  teacherStatusLoading: boolean;
+  teacherVerificationStatus: TeacherVerificationStatus;
   onNameChange: (value: string) => void;
   onEmailChange: (value: string) => void;
   onAvatarUrlChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onConfirmPasswordChange: (value: string) => void;
   onSubmit: () => void;
+  onRequestTeacherVerification: () => void;
 }
 
 export function ProfileView({
@@ -31,13 +35,25 @@ export function ProfileView({
   profileConfirmPassword,
   loading,
   status,
+  teacherApproverEmail,
+  teacherStatusLoading,
+  teacherVerificationStatus,
   onNameChange,
   onEmailChange,
   onAvatarUrlChange,
   onPasswordChange,
   onConfirmPasswordChange,
-  onSubmit
+  onSubmit,
+  onRequestTeacherVerification
 }: ProfileViewProps) {
+  const statusLabel = teacherVerificationStatus === 'approved'
+    ? 'You are a verified teacher.'
+    : teacherVerificationStatus === 'pending'
+      ? 'Teacher verification is pending admin approval.'
+      : teacherVerificationStatus === 'rejected'
+        ? 'Teacher verification was rejected. Please contact admin.'
+        : 'Request teacher access to unlock Classes.';
+
   return (
     <div className="view active">
       <div className="simple-view-card profile-card">
@@ -83,6 +99,22 @@ export function ProfileView({
               <label className="modal-label" htmlFor="profile-confirm-password">Confirm Password</label>
               <input className="modal-input" id="profile-confirm-password" type="password" placeholder="Repeat new password" autoComplete="new-password" value={profileConfirmPassword} onChange={(event) => onConfirmPasswordChange(event.target.value)} />
             </div>
+          </div>
+
+          <div className="teacher-request-row">
+            <div>
+              <div className="modal-label">Teacher Access</div>
+              <div className="view-sub">{statusLabel}</div>
+              {teacherApproverEmail ? <div className="field-note">Approval email: {teacherApproverEmail}</div> : null}
+            </div>
+            <button
+              className={`modal-submit teacher-request-btn ${teacherStatusLoading ? 'btn-loading' : ''}`}
+              type="button"
+              onClick={onRequestTeacherVerification}
+              disabled={teacherStatusLoading || teacherVerificationStatus === 'pending' || teacherVerificationStatus === 'approved'}
+            >
+              {teacherVerificationStatus === 'approved' ? 'Teacher Verified' : teacherVerificationStatus === 'pending' ? 'Request Pending' : 'I am a teacher'}
+            </button>
           </div>
 
           {status?.text ? <div className={`status-banner ${status.tone}`}>{status.text}</div> : null}

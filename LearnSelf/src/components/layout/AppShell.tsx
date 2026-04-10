@@ -6,6 +6,7 @@ import type { StatusMessage, UserProfile, ViewName } from '../../types';
 interface AppShellProps {
   currentView: ViewName;
   currentUser: UserProfile;
+  isTeacher: boolean;
   status?: StatusMessage | null;
   onViewChange: (view: ViewName) => void;
   children: ReactNode;
@@ -46,7 +47,7 @@ function MenuIcon({ open }: { open: boolean }) {
   );
 }
 
-export function AppShell({ currentView, currentUser, status, onViewChange, children }: AppShellProps) {
+export function AppShell({ currentView, currentUser, isTeacher, status, onViewChange, children }: AppShellProps) {
   const headerRef = useRef<HTMLElement | null>(null);
   const logoRef = useRef<HTMLDivElement | null>(null);
   const navMeasureRef = useRef<HTMLDivElement | null>(null);
@@ -58,6 +59,7 @@ export function AppShell({ currentView, currentUser, status, onViewChange, child
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuAnimating, setMenuAnimating] = useState(false);
   const [menuTop, setMenuTop] = useState(0);
+  const navItems = isTeacher ? [...NAV_ITEMS, { key: 'classes' as const, label: 'Classes' }] : NAV_ITEMS;
 
   useEffect(() => {
     const clearCloseTimeout = () => {
@@ -179,7 +181,7 @@ export function AppShell({ currentView, currentUser, status, onViewChange, child
 
         {!compactMenuEnabled ? (
           <nav>
-            {NAV_ITEMS.map((item) => (
+            {navItems.map((item) => (
               <button
                 key={item.key}
                 className={`nav-btn ${currentView === item.key ? 'active' : ''}`}
@@ -253,7 +255,7 @@ export function AppShell({ currentView, currentUser, status, onViewChange, child
             aria-label="Main navigation"
           >
             <div className="header-popout-inner">
-              {NAV_ITEMS.map((item, index) => (
+              {navItems.map((item, index) => (
                 <button
                   key={item.key}
                   className={`nav-btn nav-btn-popout ${currentView === item.key ? 'active' : ''}`}
@@ -269,7 +271,7 @@ export function AppShell({ currentView, currentUser, status, onViewChange, child
                 className={`nav-btn nav-btn-popout ${currentView === 'profile' ? 'active' : ''}`}
                 type="button"
                 onClick={() => handleViewChange('profile')}
-                style={{ animationDelay: menuOpen ? `${NAV_ITEMS.length * 35}ms` : '0ms' }}
+                style={{ animationDelay: menuOpen ? `${navItems.length * 35}ms` : '0ms' }}
               >
                 Profile
               </button>
@@ -277,7 +279,7 @@ export function AppShell({ currentView, currentUser, status, onViewChange, child
                 className={`nav-btn nav-btn-popout ${currentView === 'settings' ? 'active' : ''}`}
                 type="button"
                 onClick={() => handleViewChange('settings')}
-                style={{ animationDelay: menuOpen ? `${(NAV_ITEMS.length + 1) * 35}ms` : '0ms' }}
+                style={{ animationDelay: menuOpen ? `${(navItems.length + 1) * 35}ms` : '0ms' }}
               >
                 Settings
               </button>
@@ -288,7 +290,7 @@ export function AppShell({ currentView, currentUser, status, onViewChange, child
 
       <div className="header-measure" aria-hidden="true">
         <div ref={navMeasureRef} className="header-measure-row">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <button key={item.key} className="nav-btn" type="button" tabIndex={-1}>
               {item.label}
             </button>

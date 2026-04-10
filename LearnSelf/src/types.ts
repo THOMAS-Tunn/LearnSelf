@@ -1,4 +1,4 @@
-export type ViewName = 'dashboard' | 'community' | 'friends' | 'finished' | 'trash' | 'tools' | 'help' | 'profile' | 'settings';
+export type ViewName = 'dashboard' | 'community' | 'friends' | 'classes' | 'finished' | 'trash' | 'tools' | 'help' | 'profile' | 'settings';
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'Group';
 export type AssignmentStatus = 'active' | 'finished' | 'trashed';
@@ -8,11 +8,15 @@ export type CommunityPostStatus = 'open' | 'deleted';
 export type CommunityFeedSection = 'all' | 'favorite-posts' | 'favorite-comments' | 'my-posts' | 'friend-posts' | 'archived' | 'deleted';
 export type CommunityCommentSort = 'oldest' | 'newest' | 'most-liked';
 
+export type TeacherVerificationStatus = 'none' | 'pending' | 'approved' | 'rejected';
+
 export interface UserProfile {
   id: string;
   email: string;
   name: string;
   avatarUrl: string;
+  isTeacher: boolean;
+  teacherVerificationStatus: TeacherVerificationStatus;
 }
 
 export interface Assignment {
@@ -125,4 +129,28 @@ export interface FriendSearchResult extends DirectoryProfile {
 export interface StatusMessage {
   tone: 'info' | 'success' | 'error';
   text: string;
+}
+
+
+export interface ClassRoom {
+  id: string;
+  teacherId: string;
+  name: string;
+  code: string;
+  description: string;
+  studentCount: number;
+}
+
+export interface ClassAssignmentTemplate {
+  id: string;
+  teacherId: string;
+  classId: string;
+  className: string;
+  name: string;
+  description: string;
+  due: string;
+  dueTime: string;
+  difficulty: Difficulty;
+  assignedStudentsCount: number;
+  createdAt: string;
 }

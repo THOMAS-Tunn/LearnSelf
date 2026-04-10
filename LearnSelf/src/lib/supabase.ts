@@ -115,7 +115,9 @@ export function mapUser(user: User): UserProfile {
     id: user.id,
     email: user.email || '',
     name: user.user_metadata?.full_name?.trim() || user.email?.split('@')[0] || DEFAULT_USER_NAME,
-    avatarUrl: typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url.trim() : ''
+    avatarUrl: typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url.trim() : '',
+    isTeacher: false,
+    teacherVerificationStatus: 'none'
   };
 }
 

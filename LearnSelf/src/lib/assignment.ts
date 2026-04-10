@@ -312,7 +312,14 @@ export function createEmptyAssignmentForm(): AssignmentFormValues {
 }
 
 export function getInitialUser(): UserProfile {
-  return { id: '', email: '', name: DEFAULT_USER_NAME, avatarUrl: '' };
+  return {
+    id: '',
+    email: '',
+    name: DEFAULT_USER_NAME,
+    avatarUrl: '',
+    isTeacher: false,
+    teacherVerificationStatus: 'none'
+  };
 }
 
 export function getInitialGradingMode(): GradingMode {

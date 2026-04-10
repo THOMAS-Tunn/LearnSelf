@@ -5,5 +5,6 @@ interface Window {
     supabaseUrl?: string;
     supabaseAnonKey?: string;
     siteUrl?: string;
+    teacherApproverEmail?: string;
   };
 }
